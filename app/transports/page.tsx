@@ -27,9 +27,10 @@ const TYPE_CONFIG: Record<string, { emoji: string; label: string; couleur: strin
 
 function getType(nom: string): string {
   const n = nom.toLowerCase()
+  // Voiture en premier pour éviter que "Voiture Papeete Faaa" soit classé en vol
+  if (n.includes('voiture') || n.includes('location') || n.includes('avis')) return 'voiture'
   if (n.includes('vol') || n.includes('pass inter') || n.includes('paris') || n.includes('papeete') || n.includes('avion')) return 'vol'
   if (n.includes('ferry') || n.includes('express') || n.includes('bateau')) return 'ferry'
-  if (n.includes('voiture') || n.includes('location') || n.includes('avis')) return 'voiture'
   if (n.includes('taxi')) return 'taxi'
   return 'autre'
 }
