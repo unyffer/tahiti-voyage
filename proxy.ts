@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const ACCESS_CODE = process.env.ACCESS_CODE || 'tahiti2026'
-const COOKIE_NAME = 'tahiti_access'
+const ACCESS_CODE          = process.env.ACCESS_CODE          || 'tahiti2026'
+const ACCESS_CODE_READONLY = process.env.ACCESS_CODE_READONLY || 'tahiti-ro2026'
+const COOKIE_NAME          = 'tahiti_access'
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Laisser passer les routes API et les assets
   if (
     pathname.startsWith('/api/') ||
     pathname.startsWith('/_next/') ||
@@ -17,7 +17,9 @@ export function proxy(request: NextRequest) {
   }
 
   const cookie = request.cookies.get(COOKIE_NAME)
-  if (cookie?.value === ACCESS_CODE) {
+  const val = cookie?.value ?? ''
+
+  if (val === ACCESS_CODE || val === ACCESS_CODE_READONLY) {
     return NextResponse.next()
   }
 

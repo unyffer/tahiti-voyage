@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
 import Modal from '@/components/Modal'
 import FormField from '@/components/FormField'
+import { useCanEdit } from '@/components/RoleContext'
 
 interface PaiementLog {
   id: number; description: string; regis: number | null; isa: number | null
@@ -65,6 +66,7 @@ export default function PaiementsPage() {
   const [nvMontant, setNvMontant] = useState('')
   const [nvNote, setNvNote] = useState('')
   const [sauvegarde, setSauvegarde] = useState(false)
+  const canEdit = useCanEdit()
   const PERSONNES = ['Régis', 'Isa', 'Agathe'] as const
 
   const charger = useCallback(async () => {

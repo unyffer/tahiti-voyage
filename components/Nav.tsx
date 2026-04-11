@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
+import { useRole } from '@/components/RoleContext'
 
 const liens = [
   { href: '/', label: 'Accueil', emoji: '🏠' },
@@ -19,15 +20,24 @@ const liens = [
 export default function Nav() {
   const pathname = usePathname()
   const [menuOuvert, setMenuOuvert] = useState(false)
+  const role = useRole()
+  const isReadonly = role === 'readonly'
 
   if (pathname === '/login') return null
 
   return (
+    <>
+    {isReadonly && (
+      <div className="bg-amber-400 text-amber-900 text-center text-xs font-semibold py-1.5 px-4">
+        👁️ Mode lecture seule — vous pouvez consulter mais pas modifier les données
+      </div>
+    )}
     <nav className="bg-teal-800 text-white shadow-lg sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4">
         <div className="flex items-center justify-between h-14">
           <Link href="/" className="font-bold text-lg flex items-center gap-2">
             🌺 <span className="hidden sm:inline">Tahiti 2026</span>
+            {isReadonly && <span className="text-xs bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded font-semibold">Lecture</span>}
           </Link>
 
           {/* Desktop */}
@@ -78,5 +88,6 @@ export default function Nav() {
         )}
       </div>
     </nav>
+    </>
   )
 }

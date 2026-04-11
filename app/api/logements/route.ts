@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { isReadonly, readonlyResponse } from '@/lib/auth'
 
 export async function GET() {
   const { data, error } = await supabase.from('logements').select('*').order('id')
@@ -10,6 +11,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (isReadonly(request)) return readonlyResponse()
   const body = await request.json()
   const { data, error } = await supabase.from('logements').insert(body).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -17,6 +19,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  if (isReadonly(request)) return readonlyResponse()
   const body = await request.json()
   const { id, ...updates } = body
   const { data, error } = await supabase
@@ -26,6 +29,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (isReadonly(request)) return readonlyResponse()
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
   const { error } = await supabase.from('logements').delete().eq('id', id!)
