@@ -7,6 +7,7 @@ import { ILES } from '@/lib/constants'
 import Link from 'next/link'
 import Modal from '@/components/Modal'
 import FormField from '@/components/FormField'
+import { apiFetch } from '@/lib/toast'
 
 interface Activite {
   id: number; ile: string; categorie: string; nom: string; prix: number | null
@@ -45,20 +46,19 @@ export default function ActivitesPage() {
   async function sauvegarder(e: React.FormEvent) {
     e.preventDefault()
     setSauvegarde(true)
-    const method = modal?.id ? 'PATCH' : 'POST'
-    await fetch('/api/activites', {
-      method, headers: { 'Content-Type': 'application/json' },
+    const { ok } = await apiFetch('/api/activites', {
+      method: modal?.id ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(modal)
     })
-    setModal(null)
-    await charger()
+    if (ok) { setModal(null); await charger() }
     setSauvegarde(false)
   }
 
   async function supprimer(id: number) {
     if (!confirm('Supprimer cette activité ?')) return
-    await fetch(`/api/activites?id=${id}`, { method: 'DELETE' })
-    await charger()
+    const { ok } = await apiFetch(`/api/activites?id=${id}`, { method: 'DELETE' })
+    if (ok) await charger()
   }
 
   if (chargement) return <div className="flex items-center justify-center h-48 text-gray-400">Chargement...</div>

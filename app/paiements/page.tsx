@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Modal from '@/components/Modal'
 import FormField from '@/components/FormField'
 import { useCanEdit } from '@/components/RoleContext'
+import { apiFetch } from '@/lib/toast'
 
 interface PaiementLog {
   id: number; description: string; regis: number | null; isa: number | null
@@ -93,39 +94,50 @@ export default function PaiementsPage() {
 
   async function sauvegarderLog(e: React.FormEvent) {
     e.preventDefault(); setSauvegarde(true)
-    const payload = { ...modalLog, reste_a_payer: calcReste(modalLog ?? {}) }
-    const method = modalLog?.id ? 'PATCH' : 'POST'
-    await fetch('/api/paiements-logements', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-    setModalLog(null); await charger(); setSauvegarde(false)
+    const { ok } = await apiFetch('/api/paiements-logements', {
+      method: modalLog?.id ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...modalLog, reste_a_payer: calcReste(modalLog ?? {}) })
+    })
+    if (ok) { setModalLog(null); await charger() }
+    setSauvegarde(false)
   }
 
   async function sauvegarderAutre(e: React.FormEvent) {
     e.preventDefault(); setSauvegarde(true)
-    const method = modalAutre?.id ? 'PATCH' : 'POST'
-    await fetch('/api/paiements-autres', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(modalAutre) })
-    setModalAutre(null); await charger(); setSauvegarde(false)
+    const { ok } = await apiFetch('/api/paiements-autres', {
+      method: modalAutre?.id ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(modalAutre)
+    })
+    if (ok) { setModalAutre(null); await charger() }
+    setSauvegarde(false)
   }
 
   async function supprimerLog(id: number) {
     if (!confirm('Supprimer ?')) return
-    await fetch(`/api/paiements-logements?id=${id}`, { method: 'DELETE' }); await charger()
+    const { ok } = await apiFetch(`/api/paiements-logements?id=${id}`, { method: 'DELETE' })
+    if (ok) await charger()
   }
   async function supprimerAutre(id: number) {
     if (!confirm('Supprimer ?')) return
-    await fetch(`/api/paiements-autres?id=${id}`, { method: 'DELETE' }); await charger()
+    const { ok } = await apiFetch(`/api/paiements-autres?id=${id}`, { method: 'DELETE' })
+    if (ok) await charger()
   }
   async function ajouterVirement(e: React.FormEvent) {
     e.preventDefault()
     if (!nvMontant || nvDe === nvVers) return
     setSauvegarde(true)
-    await fetch('/api/virements', {
+    const { ok } = await apiFetch('/api/virements', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ de: nvDe, vers: nvVers, montant: Number(nvMontant), note: nvNote || null })
     })
-    setModalVirement(false); setNvMontant(''); setNvNote(''); await charger(); setSauvegarde(false)
+    if (ok) { setModalVirement(false); setNvMontant(''); setNvNote(''); await charger() }
+    setSauvegarde(false)
   }
   async function supprimerVirement(id: number) {
-    await fetch(`/api/virements?id=${id}`, { method: 'DELETE' }); await charger()
+    const { ok } = await apiFetch(`/api/virements?id=${id}`, { method: 'DELETE' })
+    if (ok) await charger()
   }
 
   if (chargement) return <div className="flex items-center justify-center h-48 text-gray-400">Chargement...</div>

@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Modal from '@/components/Modal'
 import FormField from '@/components/FormField'
 import { ILES } from '@/lib/constants'
+import { apiFetch } from '@/lib/toast'
 
 interface Transport {
   id: number; ile: string; nom: string; prix: number | null
@@ -64,21 +65,19 @@ export default function TransportsPage() {
   async function sauvegarder(e: React.FormEvent) {
     e.preventDefault()
     setSauvegarde(true)
-    const payload = { ...modal, categorie: 'transport' }
-    const method = modal?.id ? 'PATCH' : 'POST'
-    await fetch('/api/activites', {
-      method, headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+    const { ok } = await apiFetch('/api/activites', {
+      method: modal?.id ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...modal, categorie: 'transport' })
     })
-    setModal(null)
-    await charger()
+    if (ok) { setModal(null); await charger() }
     setSauvegarde(false)
   }
 
   async function supprimer(id: number) {
     if (!confirm('Supprimer ce transport ?')) return
-    await fetch(`/api/activites?id=${id}`, { method: 'DELETE' })
-    setTransports(prev => prev.filter(t => t.id !== id))
+    const { ok } = await apiFetch(`/api/activites?id=${id}`, { method: 'DELETE' })
+    if (ok) setTransports(prev => prev.filter(t => t.id !== id))
   }
 
   // Vols internes Air Tahiti — données fixes de la réservation

@@ -7,6 +7,7 @@ import Modal from '@/components/Modal'
 import FormField from '@/components/FormField'
 import { ILES } from '@/lib/constants'
 import { isUrl } from '@/lib/utils'
+import { apiFetch } from '@/lib/toast'
 
 interface Logement { id: number; ile: string; periode: string; lien_annonce: string | null; commentaires: string | null; questions: string | null }
 interface PaiementLog { id: number; description: string; regis: number | null; isa: number | null; agathe: number | null; total: number | null; date_echeance: string | null; reste_a_payer: number | null; lien_reservation: string | null }
@@ -45,24 +46,28 @@ export default function LogementsPage() {
 
   async function sauvegarderLog(e: React.FormEvent) {
     e.preventDefault(); setSauvegarde(true)
-    await fetch('/api/logements', { method: modalLog?.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(modalLog) })
-    setModalLog(null); await charger(); setSauvegarde(false)
+    const { ok } = await apiFetch('/api/logements', { method: modalLog?.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(modalLog) })
+    if (ok) { setModalLog(null); await charger() }
+    setSauvegarde(false)
   }
 
   async function sauvegarderPai(e: React.FormEvent) {
     e.preventDefault(); setSauvegarde(true)
-    await fetch('/api/paiements-logements', { method: modalPai?.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(modalPai) })
-    setModalPai(null); await charger(); setSauvegarde(false)
+    const { ok } = await apiFetch('/api/paiements-logements', { method: modalPai?.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(modalPai) })
+    if (ok) { setModalPai(null); await charger() }
+    setSauvegarde(false)
   }
 
   async function supprimerLog(id: number) {
     if (!confirm('Supprimer ce logement ?')) return
-    await fetch(`/api/logements?id=${id}`, { method: 'DELETE' }); await charger()
+    const { ok } = await apiFetch(`/api/logements?id=${id}`, { method: 'DELETE' })
+    if (ok) await charger()
   }
 
   async function supprimerPai(id: number) {
     if (!confirm('Supprimer cette ligne ?')) return
-    await fetch(`/api/paiements-logements?id=${id}`, { method: 'DELETE' }); await charger()
+    const { ok } = await apiFetch(`/api/paiements-logements?id=${id}`, { method: 'DELETE' })
+    if (ok) await charger()
   }
 
   if (chargement) return <div className="flex items-center justify-center h-48 text-gray-400">Chargement...</div>

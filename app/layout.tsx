@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import Nav from '@/components/Nav'
 import { RoleProvider } from '@/components/RoleContext'
+import Toast from '@/components/Toast'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -22,6 +23,7 @@ export default function RootLayout({
         <RoleProvider>
           <Nav />
           <main className="max-w-6xl mx-auto px-4 py-6">{children}</main>
+          <Toast />
         </RoleProvider>
       </body>
     </html>

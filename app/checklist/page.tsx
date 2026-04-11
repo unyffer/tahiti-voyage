@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { apiFetch } from '@/lib/toast'
 
 interface ChecklistItem { id: number; item: string; categorie: string; checked: boolean; personne: string }
 
@@ -35,10 +36,11 @@ export default function ChecklistPage() {
 
   async function toggle(id: number, checked: boolean) {
     setItems(prev => prev.map(i => i.id === id ? { ...i, checked } : i))
-    await fetch('/api/checklist', {
+    const { ok } = await apiFetch('/api/checklist', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, checked })
     })
+    if (!ok) setItems(prev => prev.map(i => i.id === id ? { ...i, checked: !checked } : i))
   }
 
   // Catégories dynamiques = défaut + toutes celles déjà utilisées
@@ -51,12 +53,14 @@ export default function ChecklistPage() {
     if (!nouvelItem.trim()) return
     const cat = nouvelleCategorie === '__nouvelle__' ? nouvelleCatCustom.trim() : nouvelleCategorie
     if (!cat) return
-    const res = await fetch('/api/checklist', {
+    const { ok, data } = await apiFetch('/api/checklist', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ item: nouvelItem.trim(), categorie: cat, checked: false, personne: onglet })
     })
-    const data = await res.json()
-    if (data.id) { setItems(prev => [...prev, data]); setNouvelItem(''); setNouvelleCatCustom(''); setAjout(false) }
+    if (ok && data && (data as ChecklistItem).id) {
+      setItems(prev => [...prev, data as ChecklistItem])
+      setNouvelItem(''); setNouvelleCatCustom(''); setAjout(false)
+    }
   }
 
   async function sauvegarderEdit(id: number) {
@@ -64,17 +68,19 @@ export default function ChecklistPage() {
     const cat = editCat === '__nouvelle__' ? editCatCustom.trim() : editCat
     const updates: Record<string, string> = { item: editNom.trim() }
     if (cat) updates.categorie = cat
-    await fetch('/api/checklist', {
+    const { ok } = await apiFetch('/api/checklist', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, ...updates })
     })
-    setItems(prev => prev.map(i => i.id === id ? { ...i, item: editNom.trim(), ...(cat ? { categorie: cat } : {}) } : i))
-    setEditId(null)
+    if (ok) {
+      setItems(prev => prev.map(i => i.id === id ? { ...i, item: editNom.trim(), ...(cat ? { categorie: cat } : {}) } : i))
+      setEditId(null)
+    }
   }
 
   async function supprimer(id: number) {
-    setItems(prev => prev.filter(i => i.id !== id))
-    await fetch(`/api/checklist?id=${id}`, { method: 'DELETE' })
+    const { ok } = await apiFetch(`/api/checklist?id=${id}`, { method: 'DELETE' })
+    if (ok) setItems(prev => prev.filter(i => i.id !== id))
   }
 
   async function toutDecocher() {
