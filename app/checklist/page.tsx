@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 
 interface ChecklistItem { id: number; item: string; categorie: string; checked: boolean; personne: string }
 
-const CATEGORIES = ['Mer 🌊', 'Rando 🥾', 'Vêtements 👕', 'Tech 📸', 'Divers 🎲']
+const CATEGORIES_DEFAUT = ['Mer 🌊', 'Rando 🥾', 'Vêtements 👕', 'Tech 📸', 'Divers 🎲']
 const PERSONNES = ['Commun', 'Régis', 'Isa', 'Agathe'] as const
 type Personne = typeof PERSONNES[number]
 
@@ -19,8 +19,11 @@ export default function ChecklistPage() {
   const [ajout, setAjout] = useState(false)
   const [nouvelItem, setNouvelItem] = useState('')
   const [nouvelleCategorie, setNouvelleCategorie] = useState('Divers 🎲')
+  const [nouvelleCatCustom, setNouvelleCatCustom] = useState('')
   const [editId, setEditId] = useState<number | null>(null)
   const [editNom, setEditNom] = useState('')
+  const [editCat, setEditCat] = useState('')
+  const [editCatCustom, setEditCatCustom] = useState('')
 
   const charger = useCallback(async () => {
     const data = await fetch('/api/checklist').then(r => r.json())
@@ -38,24 +41,34 @@ export default function ChecklistPage() {
     })
   }
 
+  // Catégories dynamiques = défaut + toutes celles déjà utilisées
+  const categoriesDisponibles = [
+    ...new Set([...CATEGORIES_DEFAUT, ...items.map(i => i.categorie)])
+  ].sort()
+
   async function ajouter(e: React.FormEvent) {
     e.preventDefault()
     if (!nouvelItem.trim()) return
+    const cat = nouvelleCategorie === '__nouvelle__' ? nouvelleCatCustom.trim() : nouvelleCategorie
+    if (!cat) return
     const res = await fetch('/api/checklist', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item: nouvelItem.trim(), categorie: nouvelleCategorie, checked: false, personne: onglet })
+      body: JSON.stringify({ item: nouvelItem.trim(), categorie: cat, checked: false, personne: onglet })
     })
     const data = await res.json()
-    if (data.id) { setItems(prev => [...prev, data]); setNouvelItem(''); setAjout(false) }
+    if (data.id) { setItems(prev => [...prev, data]); setNouvelItem(''); setNouvelleCatCustom(''); setAjout(false) }
   }
 
-  async function renommer(id: number) {
+  async function sauvegarderEdit(id: number) {
     if (!editNom.trim()) { setEditId(null); return }
+    const cat = editCat === '__nouvelle__' ? editCatCustom.trim() : editCat
+    const updates: Record<string, string> = { item: editNom.trim() }
+    if (cat) updates.categorie = cat
     await fetch('/api/checklist', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, item: editNom.trim() })
+      body: JSON.stringify({ id, ...updates })
     })
-    setItems(prev => prev.map(i => i.id === id ? { ...i, item: editNom.trim() } : i))
+    setItems(prev => prev.map(i => i.id === id ? { ...i, item: editNom.trim(), ...(cat ? { categorie: cat } : {}) } : i))
     setEditId(null)
   }
 
@@ -138,15 +151,21 @@ export default function ChecklistPage() {
 
         {/* Formulaire ajout */}
         {ajout && (
-          <div className="px-5 py-4 bg-teal-50 border-b border-teal-100">
+          <div className="px-5 py-4 bg-teal-50 border-b border-teal-100 space-y-2">
             <form onSubmit={ajouter} className="flex flex-wrap gap-3">
               <input type="text" value={nouvelItem} onChange={e => setNouvelItem(e.target.value)}
                 placeholder={`Item pour ${onglet}...`} autoFocus
                 className="flex-1 min-w-40 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
               <select value={nouvelleCategorie} onChange={e => setNouvelleCategorie(e.target.value)}
                 className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                {categoriesDisponibles.map(c => <option key={c} value={c}>{c}</option>)}
+                <option value="__nouvelle__">✏️ Nouvelle catégorie...</option>
               </select>
+              {nouvelleCategorie === '__nouvelle__' && (
+                <input type="text" value={nouvelleCatCustom} onChange={e => setNouvelleCatCustom(e.target.value)}
+                  placeholder="Nom de la catégorie..."
+                  className="border border-teal-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+              )}
               <button type="submit" className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-700">Ajouter</button>
               <button type="button" onClick={() => setAjout(false)} className="text-gray-500 px-3 py-2 rounded-lg text-sm border border-gray-200 hover:bg-gray-50">✕</button>
             </form>
@@ -172,27 +191,44 @@ export default function ChecklistPage() {
                 </div>
                 <div className="divide-y divide-gray-100">
                   {catItems.map(item => (
-                    <div key={item.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 group">
-                      <input type="checkbox" checked={item.checked} onChange={e => toggle(item.id, e.target.checked)}
-                        className="w-5 h-5 rounded text-teal-600 border-gray-300 focus:ring-teal-500 flex-shrink-0" />
+                    <div key={item.id} className="px-5 py-2 hover:bg-gray-50 group">
                       {editId === item.id ? (
-                        <input type="text" value={editNom} autoFocus
-                          onChange={e => setEditNom(e.target.value)}
-                          onBlur={() => renommer(item.id)}
-                          onKeyDown={e => { if (e.key === 'Enter') renommer(item.id); if (e.key === 'Escape') setEditId(null) }}
-                          className="flex-1 border border-teal-400 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                        /* Mode édition — nom + catégorie */
+                        <div className="flex flex-wrap gap-2 items-center py-1">
+                          <input type="text" value={editNom} autoFocus
+                            onChange={e => setEditNom(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') sauvegarderEdit(item.id); if (e.key === 'Escape') setEditId(null) }}
+                            className="flex-1 min-w-32 border border-teal-400 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                          <select value={editCat} onChange={e => setEditCat(e.target.value)}
+                            className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-teal-500">
+                            {categoriesDisponibles.map(c => <option key={c} value={c}>{c}</option>)}
+                            <option value="__nouvelle__">✏️ Nouvelle...</option>
+                          </select>
+                          {editCat === '__nouvelle__' && (
+                            <input type="text" value={editCatCustom} onChange={e => setEditCatCustom(e.target.value)}
+                              placeholder="Nom de la catégorie..."
+                              className="border border-teal-400 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                          )}
+                          <button onClick={() => sauvegarderEdit(item.id)} className="bg-teal-600 text-white px-2 py-1 rounded text-xs font-medium">✓</button>
+                          <button onClick={() => setEditId(null)} className="text-gray-400 px-2 py-1 rounded text-xs border border-gray-200">✕</button>
+                        </div>
                       ) : (
-                        <span onDoubleClick={() => { setEditId(item.id); setEditNom(item.item) }}
-                          className={`flex-1 text-sm cursor-pointer ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-                          {item.item}
-                        </span>
+                        /* Mode affichage */
+                        <div className="flex items-center gap-3">
+                          <input type="checkbox" checked={item.checked} onChange={e => toggle(item.id, e.target.checked)}
+                            className="w-5 h-5 rounded text-teal-600 border-gray-300 focus:ring-teal-500 flex-shrink-0" />
+                          <span onDoubleClick={() => { setEditId(item.id); setEditNom(item.item); setEditCat(item.categorie); setEditCatCustom('') }}
+                            className={`flex-1 text-sm cursor-pointer ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                            {item.item}
+                          </span>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => { setEditId(item.id); setEditNom(item.item); setEditCat(item.categorie); setEditCatCustom('') }}
+                              className="text-teal-500 hover:text-teal-700 p-1 text-xs" title="Modifier">✏️</button>
+                            <button onClick={() => supprimer(item.id)}
+                              className="text-red-400 hover:text-red-600 p-1 text-xs" title="Supprimer">🗑️</button>
+                          </div>
+                        </div>
                       )}
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => { setEditId(item.id); setEditNom(item.item) }}
-                          className="text-teal-500 hover:text-teal-700 p-1 text-xs" title="Renommer">✏️</button>
-                        <button onClick={() => supprimer(item.id)}
-                          className="text-red-400 hover:text-red-600 p-1 text-xs" title="Supprimer">🗑️</button>
-                      </div>
                     </div>
                   ))}
                 </div>

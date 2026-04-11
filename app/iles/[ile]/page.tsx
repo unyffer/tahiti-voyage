@@ -23,10 +23,16 @@ export default async function IlePage({ params }: { params: Promise<{ ile: strin
   const termes = ILE_SEARCH[slug] ?? [ileDef.nom]
 
   // Requête pour chaque terme possible et fusionner les résultats
+  // Échapper les apostrophes pour les filtres PostgREST
+  const esc = (s: string) => s.replace(/'/g, "''")
+  const filtreLog = termes.map(t => `ile.ilike.%${esc(t)}%`).join(',')
+  const filtreAct = termes.map(t => `ile.ilike.%${esc(t)}%`).join(',')
+  const filtrePlan = termes.map(t => `lieu.ilike.%${esc(t)}%`).join(',')
+
   const [logRes, actRes, planRes] = await Promise.all([
-    supabase.from('logements').select('*').or(termes.map(t => `ile.ilike.%${t}%`).join(',')),
-    supabase.from('activites').select('*').or(termes.map(t => `ile.ilike.%${t}%`).join(',')).order('categorie'),
-    supabase.from('planning').select('*').or(termes.map(t => `lieu.ilike.%${t}%`).join(','))
+    supabase.from('logements').select('*').or(filtreLog),
+    supabase.from('activites').select('*').or(filtreAct).order('categorie'),
+    supabase.from('planning').select('*').or(filtrePlan)
       .order('sort_order', { ascending: true, nullsFirst: false }),
   ])
 
@@ -144,10 +150,10 @@ export default async function IlePage({ params }: { params: Promise<{ ile: strin
         </div>
       )}
 
-      {/* Bouffe */}
+      {/* Nourriture */}
       {bouffe.length > 0 && (
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">🍴 Bouffe & snacks</h2>
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">🍴 Nourriture & snacks</h2>
           <div className="space-y-2">
             {bouffe.map((b) => (
               <div key={b.id} className="flex items-start justify-between gap-3 p-3 rounded-lg bg-orange-50">

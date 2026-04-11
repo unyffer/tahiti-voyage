@@ -41,7 +41,7 @@ export interface PaiementAutreRow {
 export interface ActiviteRow {
   id: number
   ile: string
-  categorie: 'activite' | 'bouffe' | 'transport'
+  categorie: 'activite' | 'nourriture' | 'transport'
   nom: string
   prix: number | null
   lien: string | null
