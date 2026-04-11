@@ -15,6 +15,10 @@ interface PaiementAutre {
   id: number; description: string; total: number | null; par_personne: number | null
   reste_par_personne: number | null; situation: string | null
 }
+interface Virement {
+  id: number; de: string; vers: string; montant: number
+  date_virement: string | null; note: string | null
+}
 
 type Onglet = 'global' | 'regis' | 'isa' | 'agathe' | 'balance'
 const ONGLETS: { id: Onglet; label: string; emoji: string }[] = [
@@ -76,19 +80,27 @@ function calculerVirements(positions: Record<string, number>) {
 export default function PaiementsPage() {
   const [logements, setLogements] = useState<PaiementLog[]>([])
   const [autres, setAutres] = useState<PaiementAutre[]>([])
+  const [virements, setVirements] = useState<Virement[]>([])
   const [chargement, setChargement] = useState(true)
   const [onglet, setOnglet] = useState<Onglet>('global')
   const [modalLog, setModalLog] = useState<Partial<PaiementLog> | null>(null)
   const [modalAutre, setModalAutre] = useState<Partial<PaiementAutre> | null>(null)
+  const [modalVirement, setModalVirement] = useState(false)
+  const [nvDe, setNvDe] = useState('Isa')
+  const [nvVers, setNvVers] = useState('Régis')
+  const [nvMontant, setNvMontant] = useState('')
+  const [nvNote, setNvNote] = useState('')
   const [sauvegarde, setSauvegarde] = useState(false)
 
   const charger = useCallback(async () => {
-    const [r1, r2] = await Promise.all([
+    const [r1, r2, r3] = await Promise.all([
       fetch('/api/paiements-logements').then(r => r.json()),
       fetch('/api/paiements-autres').then(r => r.json()),
+      fetch('/api/virements').then(r => r.json()),
     ])
     setLogements(r1 ?? [])
     setAutres(r2 ?? [])
+    setVirements(r3 ?? [])
     setChargement(false)
   }, [])
 
@@ -125,6 +137,19 @@ export default function PaiementsPage() {
     if (!confirm('Supprimer ?')) return
     await fetch(`/api/paiements-autres?id=${id}`, { method: 'DELETE' }); await charger()
   }
+  async function ajouterVirement(e: React.FormEvent) {
+    e.preventDefault()
+    if (!nvMontant || nvDe === nvVers) return
+    setSauvegarde(true)
+    await fetch('/api/virements', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ de: nvDe, vers: nvVers, montant: Number(nvMontant), note: nvNote || null })
+    })
+    setModalVirement(false); setNvMontant(''); setNvNote(''); await charger(); setSauvegarde(false)
+  }
+  async function supprimerVirement(id: number) {
+    await fetch(`/api/virements?id=${id}`, { method: 'DELETE' }); await charger()
+  }
 
   if (chargement) return <div className="flex items-center justify-center h-48 text-gray-400">Chargement...</div>
 
@@ -145,13 +170,23 @@ export default function PaiementsPage() {
   // Part équitable des logements
   const partEquitable = totalLog / 3
 
-  // Positions nettes (positif = on leur doit, négatif = ils doivent)
-  const positions = {
+  // Positions nettes brutes (positif = on leur doit, négatif = ils doivent)
+  const positionsBrutes = {
     Régis:  payeLog.Régis  - partEquitable,
     Isa:    payeLog.Isa    - partEquitable,
     Agathe: payeLog.Agathe - partEquitable,
   }
-  const virements = calculerVirements(positions)
+  // Appliquer les virements déjà effectués
+  // Quand A vire X€ à B : A a remboursé X€ → sa position monte de +X, B a reçu X€ → sa position baisse de -X
+  const positionsNettes = { ...positionsBrutes }
+  for (const v of virements) {
+    const de = v.de as keyof typeof positionsNettes
+    const vers = v.vers as keyof typeof positionsNettes
+    if (de in positionsNettes) positionsNettes[de] += v.montant
+    if (vers in positionsNettes) positionsNettes[vers] -= v.montant
+  }
+  const positions = positionsNettes
+  const virementsNeeded = calculerVirements(positions)
 
   // Données par personne
   const personneData = (nom: 'Régis' | 'Isa' | 'Agathe') => {
@@ -403,12 +438,12 @@ export default function PaiementsPage() {
         {onglet === 'balance' && (
           <div className="p-5 space-y-6">
             <p className="text-sm text-gray-500">
-              Basé sur ce que chacun a payé pour les logements vs sa part équitable ({euros(partEquitable)} /pers).
+              Basé sur les paiements logements (part équitable : {euros(partEquitable)}/pers), après déduction des virements déjà effectués.
             </p>
 
-            {/* Positions nettes */}
+            {/* Positions nettes APRÈS virements effectués */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {(Object.entries(positions) as [string, number][]).map(([nom, net]) => (
+              {(Object.entries(positionsNettes) as [string, number][]).map(([nom, net]) => (
                 <div key={nom} className={`border rounded-xl p-5 text-center ${
                   net > 1 ? 'bg-emerald-50 border-emerald-200'
                   : net < -1 ? 'bg-orange-50 border-orange-200'
@@ -421,51 +456,91 @@ export default function PaiementsPage() {
                     </span>
                   </p>
                   <p className={`text-sm mt-1 font-medium ${net > 1 ? 'text-emerald-600' : net < -1 ? 'text-orange-600' : 'text-gray-400'}`}>
-                    {net > 1 ? '← on lui doit' : net < -1 ? '→ doit rembourser' : '✅ équilibré'}
+                    {net > 1 ? '← on lui doit' : net < -1 ? '→ doit encore' : '✅ équilibré'}
                   </p>
                   <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500 space-y-0.5">
                     <p>Payé : {euros(payeLog[nom as keyof typeof payeLog])}</p>
                     <p>Part : {euros(partEquitable)}</p>
+                    {positionsBrutes[nom as keyof typeof positionsBrutes] !== net && (
+                      <p className="text-teal-600">Après virements : {euros(net)}</p>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Virements suggérés */}
-            {virements.length > 0 ? (
-              <div>
-                <h3 className="text-base font-semibold text-gray-800 mb-3">💸 Virements pour équilibrer :</h3>
-                <div className="space-y-3">
-                  {virements.map((v, i) => (
-                    <div key={i} className="flex items-center gap-4 bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm">
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-800 text-base">
-                          <span className="text-orange-600">{v.de}</span>
-                          <span className="mx-2 text-gray-400">→</span>
-                          <span className="text-emerald-600">{v.vers}</span>
-                        </p>
-                        <p className="text-xs text-gray-400 mt-0.5">Virement recommandé pour équilibrer les comptes</p>
-                      </div>
-                      <span className="text-2xl font-bold text-gray-800">{euros(v.montant)}</span>
+            {/* Virements encore nécessaires */}
+            {virementsNeeded.length > 0 ? (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-orange-800 mb-3">💸 Virements encore nécessaires :</h3>
+                <div className="space-y-2">
+                  {virementsNeeded.map((v, i) => (
+                    <div key={i} className="flex items-center justify-between bg-white border border-orange-200 rounded-lg px-4 py-3">
+                      <p className="font-semibold text-gray-800">
+                        <span className="text-orange-600">{v.de}</span>
+                        <span className="mx-2 text-gray-400">→</span>
+                        <span className="text-emerald-600">{v.vers}</span>
+                      </p>
+                      <span className="text-xl font-bold text-gray-800">{euros(v.montant)}</span>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 text-center">
-                <p className="text-2xl mb-1">✅</p>
-                <p className="font-semibold text-emerald-700">Les comptes sont équilibrés !</p>
+                <p className="text-3xl mb-1">✅</p>
+                <p className="font-semibold text-emerald-700 text-lg">Les comptes sont équilibrés !</p>
+                <p className="text-sm text-emerald-600 mt-1">Personne ne doit rien à personne.</p>
               </div>
             )}
 
-            {/* Reste à payer total */}
+            {/* Virements déjà effectués */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-semibold text-gray-800">🏦 Virements déjà effectués</h3>
+                <button onClick={() => setModalVirement(true)}
+                  className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-3 py-1.5 rounded-lg font-medium">
+                  + Enregistrer un virement
+                </button>
+              </div>
+              {virements.length === 0 ? (
+                <p className="text-sm text-gray-400 italic text-center py-4">
+                  Aucun virement enregistré. Si vous avez déjà fait des transferts entre vous, enregistre-les ici.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {virements.map((v) => (
+                    <div key={v.id} className="flex items-center gap-3 bg-teal-50 border border-teal-100 rounded-lg px-4 py-3 group">
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-800 text-sm">
+                          <span className="text-orange-600">{v.de}</span>
+                          <span className="mx-1.5 text-gray-400">→</span>
+                          <span className="text-emerald-600">{v.vers}</span>
+                          <span className="ml-2 font-bold">{euros(v.montant)}</span>
+                        </p>
+                        {v.note && <p className="text-xs text-gray-500 mt-0.5">{v.note}</p>}
+                        {v.date_virement && <p className="text-xs text-gray-400">{v.date_virement}</p>}
+                      </div>
+                      <button onClick={() => supprimerVirement(v.id)}
+                        className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 p-1 transition-opacity"
+                        title="Supprimer">🗑️</button>
+                    </div>
+                  ))}
+                  <p className="text-xs text-gray-400 mt-1">
+                    Total viré : {euros(virements.reduce((s, v) => s + v.montant, 0))}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Reste à payer sur les logements */}
             {resteTotal > 0 && (
               <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-                <p className="text-sm font-semibold text-orange-800">⚠️ En plus des virements, il reste {euros(resteTotal)} à payer :</p>
-                <ul className="mt-2 space-y-1">
+                <p className="text-sm font-semibold text-orange-800 mb-2">⚠️ Reste encore à payer aux hébergements ({euros(resteTotal)}) :</p>
+                <ul className="space-y-1">
                   {logements.filter(r => r.reste_a_payer && r.reste_a_payer > 0).map(r => (
                     <li key={r.id} className="text-sm text-orange-700 flex justify-between">
-                      <span>{r.description}{r.date_echeance && ` (avant ${r.date_echeance})`}</span>
+                      <span>{r.description}{r.date_echeance && ` · avant ${r.date_echeance}`}</span>
                       <span className="font-semibold">{euros(r.reste_a_payer)}</span>
                     </li>
                   ))}
@@ -520,6 +595,47 @@ export default function PaiementsPage() {
               <button type="button" onClick={() => setModalLog(null)} className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
               <button type="submit" disabled={sauvegarde} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
                 {sauvegarde ? 'Sauvegarde...' : 'Sauvegarder'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ═══════════════════════════════════════════════════ */}
+      {/* MODAL — Virement effectué */}
+      {/* ═══════════════════════════════════════════════════ */}
+      {modalVirement && (
+        <Modal titre="Enregistrer un virement" onClose={() => setModalVirement(false)}>
+          <form onSubmit={ajouterVirement} className="space-y-4">
+            <p className="text-sm text-gray-500">
+              Enregistre ici un virement déjà fait entre vous. Il sera déduit du calcul de balance.
+            </p>
+            <div className="grid grid-cols-3 gap-3 items-center">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">De</label>
+                <select value={nvDe} onChange={e => setNvDe(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                  {['Régis', 'Isa', 'Agathe'].map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <div className="text-center text-gray-400 text-xl pt-5">→</div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Vers</label>
+                <select value={nvVers} onChange={e => setNvVers(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                  {['Régis', 'Isa', 'Agathe'].filter(p => p !== nvDe).map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            </div>
+            <FormField label="Montant (€)" name="montant" type="number" value={nvMontant}
+              onChange={setNvMontant} placeholder="ex: 543" required />
+            <FormField label="Note (optionnel)" name="note" value={nvNote}
+              onChange={setNvNote} placeholder="ex: remboursement baleines" />
+            <div className="flex justify-end gap-3 pt-2">
+              <button type="button" onClick={() => setModalVirement(false)} className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+              <button type="submit" disabled={sauvegarde || nvDe === nvVers || !nvMontant}
+                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+                {sauvegarde ? 'Sauvegarde...' : 'Enregistrer'}
               </button>
             </div>
           </form>

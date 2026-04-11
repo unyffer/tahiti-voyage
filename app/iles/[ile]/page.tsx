@@ -2,13 +2,9 @@ export const dynamic = 'force-dynamic'
 
 import { supabase } from '@/lib/supabase'
 import { ILES } from '@/lib/constants'
+import { isUrl, euros } from '@/lib/utils'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-
-function euros(n: number | null | undefined) {
-  if (n == null) return '–'
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
-}
 
 // Tous les termes qui correspondent à chaque slug dans la base de données
 const ILE_SEARCH: Record<string, string[]> = {
@@ -86,8 +82,8 @@ export default async function IlePage({ params }: { params: Promise<{ ile: strin
           {logements.map((l) => (
             <div key={l.id} className="space-y-2">
               <p className="text-sm text-gray-500">{l.periode}</p>
-              {l.lien_annonce && (
-                <a href={l.lien_annonce} target="_blank" rel="noopener noreferrer"
+              {isUrl(l.lien_annonce) && (
+                <a href={l.lien_annonce!} target="_blank" rel="noopener noreferrer"
                   className="text-teal-600 hover:text-teal-700 font-medium text-sm block">
                   🔗 Voir l&apos;annonce
                 </a>

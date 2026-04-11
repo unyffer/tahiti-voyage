@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Modal from '@/components/Modal'
 import FormField from '@/components/FormField'
 import { ILES } from '@/lib/constants'
+import { isUrl } from '@/lib/utils'
 
 interface Logement { id: number; ile: string; periode: string; lien_annonce: string | null; commentaires: string | null; questions: string | null }
 interface PaiementLog { id: number; description: string; regis: number | null; isa: number | null; agathe: number | null; total: number | null; date_echeance: string | null; reste_a_payer: number | null; lien_reservation: string | null }
@@ -113,7 +114,7 @@ export default function LogementsPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{p.date_echeance ?? '–'}</td>
                     <td className="px-4 py-3">
-                      {(p.lien_reservation || log?.lien_annonce) && (
+                      {(isUrl(p.lien_reservation) || isUrl(log?.lien_annonce)) && (
                         <a href={p.lien_reservation ?? log?.lien_annonce ?? ''} target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:text-teal-700 font-medium text-xs">🔗</a>
                       )}
                     </td>
@@ -161,8 +162,8 @@ export default function LogementsPage() {
                 <button onClick={() => supprimerLog(l.id)} className="text-red-400 hover:text-red-600 p-1" title="Supprimer">🗑️</button>
               </div>
             </div>
-            {l.lien_annonce && (
-              <a href={l.lien_annonce} target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:text-teal-700 text-sm font-medium block mb-2">
+            {isUrl(l.lien_annonce) && (
+              <a href={l.lien_annonce!} target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:text-teal-700 text-sm font-medium block mb-2">
                 🔗 Voir l&apos;annonce
               </a>
             )}
