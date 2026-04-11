@@ -9,15 +9,26 @@ export async function GET() {
   return NextResponse.json(data)
 }
 
-export async function PATCH(request: NextRequest) {
+export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { id, checked } = body
-  const { data, error } = await supabase
-    .from('checklist')
-    .update({ checked })
-    .eq('id', id)
-    .select()
-    .single()
+  const { data, error } = await supabase.from('checklist').insert(body).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
+}
+
+export async function PATCH(request: NextRequest) {
+  const body = await request.json()
+  const { id, ...updates } = body
+  const { data, error } = await supabase
+    .from('checklist').update(updates).eq('id', id).select().single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
+}
+
+export async function DELETE(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const id = searchParams.get('id')
+  const { error } = await supabase.from('checklist').delete().eq('id', id!)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
 }

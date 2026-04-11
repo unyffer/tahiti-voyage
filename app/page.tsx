@@ -11,7 +11,7 @@ function euros(n: number | null | undefined) {
 
 export default async function DashboardPage() {
   const [{ data: planning }, { data: paiementsLog }, { data: paiementsAutres }] = await Promise.all([
-    supabase.from('planning').select('*').order('date_debut'),
+    supabase.from('planning').select('*').order('sort_order', { ascending: true, nullsFirst: false }),
     supabase.from('paiements_logements').select('*'),
     supabase.from('paiements_autres').select('*'),
   ])
