@@ -20,13 +20,11 @@ interface Virement {
   date_virement: string | null; note: string | null
 }
 
-type Onglet = 'global' | 'regis' | 'isa' | 'agathe' | 'balance'
-const ONGLETS: { id: Onglet; label: string; emoji: string }[] = [
-  { id: 'global',  label: 'Vue globale', emoji: '📊' },
-  { id: 'regis',   label: 'Régis',       emoji: '👤' },
-  { id: 'isa',     label: 'Isa',         emoji: '👤' },
-  { id: 'agathe',  label: 'Agathe',      emoji: '👤' },
-  { id: 'balance', label: 'Balance 💰',  emoji: '⚖️' },
+type Onglet = 'global' | 'echeances' | 'virements'
+const ONGLETS: { id: Onglet; label: string }[] = [
+  { id: 'global',    label: '📊 Vue globale' },
+  { id: 'echeances', label: '📅 Prochaines échéances' },
+  { id: 'virements', label: '💸 Virements entre nous' },
 ]
 
 function euros(n: number | null | undefined, signed = false) {
@@ -52,30 +50,6 @@ const AUTRE_VIDE: Omit<PaiementAutre, 'id'> = {
   description: '', total: null, par_personne: null, reste_par_personne: null, situation: null
 }
 
-// Calcul des virements nécessaires pour équilibrer les 3 personnes
-function calculerVirements(positions: Record<string, number>) {
-  const soldes = Object.entries(positions).map(([nom, solde]) => ({ nom, solde }))
-  const virements: { de: string; vers: string; montant: number }[] = []
-
-  const debiteurs = soldes.filter(s => s.solde < -1).sort((a, b) => a.solde - b.solde)
-  const crediteurs = soldes.filter(s => s.solde > 1).sort((a, b) => b.solde - a.solde)
-
-  let i = 0, j = 0
-  const d = debiteurs.map(x => ({ ...x }))
-  const c = crediteurs.map(x => ({ ...x }))
-
-  while (i < d.length && j < c.length) {
-    const montant = Math.min(-d[i].solde, c[j].solde)
-    if (montant > 0.5) {
-      virements.push({ de: d[i].nom, vers: c[j].nom, montant: Math.round(montant) })
-    }
-    d[i].solde += montant
-    c[j].solde -= montant
-    if (Math.abs(d[i].solde) < 1) i++
-    if (Math.abs(c[j].solde) < 1) j++
-  }
-  return virements
-}
 
 export default function PaiementsPage() {
   const [logements, setLogements] = useState<PaiementLog[]>([])
@@ -91,6 +65,7 @@ export default function PaiementsPage() {
   const [nvMontant, setNvMontant] = useState('')
   const [nvNote, setNvNote] = useState('')
   const [sauvegarde, setSauvegarde] = useState(false)
+  const PERSONNES = ['Régis', 'Isa', 'Agathe'] as const
 
   const charger = useCallback(async () => {
     const [r1, r2, r3] = await Promise.all([
@@ -153,49 +128,30 @@ export default function PaiementsPage() {
 
   if (chargement) return <div className="flex items-center justify-center h-48 text-gray-400">Chargement...</div>
 
-  // Totaux logements
+  // Totaux globaux (ce que vous devez aux prestataires)
   const totalLog = logements.reduce((s, r) => s + (r.total ?? 0), 0)
   const resteLog = logements.reduce((s, r) => s + (r.reste_a_payer ?? 0), 0)
-  // Totaux autres
   const totalAutres = autres.reduce((s, r) => s + (r.total ?? 0), 0)
   const resteAutres = autres.reduce((s, r) => s + (r.reste_par_personne ?? 0) * 3, 0)
+  const totalGeneral = totalLog + totalAutres
   const resteTotal = resteLog + resteAutres
+  const dejaPayeTotal = totalGeneral - resteTotal
 
-  // Ce que chaque personne a payé (logements uniquement pour l'instant)
-  const payeLog = {
+  // Qui a payé quoi (informatif uniquement — aucune conclusion sur qui doit quoi)
+  const payeParPersonne = {
     Régis:  logements.reduce((s, r) => s + (r.regis ?? 0), 0),
     Isa:    logements.reduce((s, r) => s + (r.isa ?? 0), 0),
     Agathe: logements.reduce((s, r) => s + (r.agathe ?? 0), 0),
   }
-  // Part équitable des logements
-  const partEquitable = totalLog / 3
 
-  // Positions nettes brutes (positif = on leur doit, négatif = ils doivent)
-  const positionsBrutes = {
-    Régis:  payeLog.Régis  - partEquitable,
-    Isa:    payeLog.Isa    - partEquitable,
-    Agathe: payeLog.Agathe - partEquitable,
-  }
-  // Appliquer les virements déjà effectués
-  // Quand A vire X€ à B : A a remboursé X€ → sa position monte de +X, B a reçu X€ → sa position baisse de -X
-  const positionsNettes = { ...positionsBrutes }
-  for (const v of virements) {
-    const de = v.de as keyof typeof positionsNettes
-    const vers = v.vers as keyof typeof positionsNettes
-    if (de in positionsNettes) positionsNettes[de] += v.montant
-    if (vers in positionsNettes) positionsNettes[vers] -= v.montant
-  }
-  const positions = positionsNettes
-  const virementsNeeded = calculerVirements(positions)
-
-  // Données par personne
-  const personneData = (nom: 'Régis' | 'Isa' | 'Agathe') => {
-    const key = nom === 'Régis' ? 'regis' : nom === 'Isa' ? 'isa' : 'agathe'
-    const rows = logements.filter(r => r[key] != null && (r[key] as number) > 0)
-    const totalPaye = rows.reduce((s, r) => s + ((r[key] as number | null) ?? 0), 0)
-    const resteLog = logements.filter(r => r.reste_a_payer && r.reste_a_payer > 0)
-    return { rows, totalPaye, resteLog, partEquitable, net: positions[nom] }
-  }
+  // Échéances à venir triées par date
+  const echeances = logements
+    .filter(r => r.reste_a_payer && r.reste_a_payer > 0)
+    .sort((a, b) => {
+      if (!a.date_echeance) return 1
+      if (!b.date_echeance) return -1
+      return a.date_echeance > b.date_echeance ? 1 : -1
+    })
 
   // Table logements avec boutons édition
   const TableLogements = () => (
@@ -235,15 +191,15 @@ export default function PaiementsPage() {
               </td>
             </tr>
           ))}
-          <tr className="bg-gray-50 font-semibold text-sm">
-            <td className="px-4 py-3 text-gray-700">Total</td>
-            <td className="px-4 py-3 text-right">{euros(payeLog.Régis)}</td>
-            <td className="px-4 py-3 text-right">{euros(payeLog.Isa)}</td>
-            <td className="px-4 py-3 text-right">{euros(payeLog.Agathe)}</td>
-            <td className="px-4 py-3 text-right">{euros(totalLog)}</td>
-            <td className="px-4 py-3 text-orange-600">{euros(resteLog)} restant</td>
-            <td colSpan={2}></td>
-          </tr>
+              <tr className="bg-gray-50 font-semibold text-sm">
+                <td className="px-4 py-3 text-gray-700">Total</td>
+                <td className="px-4 py-3 text-right">{euros(payeParPersonne.Régis)}</td>
+                <td className="px-4 py-3 text-right">{euros(payeParPersonne.Isa)}</td>
+                <td className="px-4 py-3 text-right">{euros(payeParPersonne.Agathe)}</td>
+                <td className="px-4 py-3 text-right">{euros(totalLog)}</td>
+                <td className="px-4 py-3 text-orange-600">{euros(resteLog)} restant</td>
+                <td colSpan={2}></td>
+              </tr>
         </tbody>
       </table>
     </div>
@@ -259,18 +215,27 @@ export default function PaiementsPage() {
       {/* Résumé global */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <p className="text-sm text-gray-500">Total voyage</p>
-          <p className="text-2xl font-bold text-gray-800">{euros(totalLog + totalAutres)}</p>
+          <p className="text-sm text-gray-500">Budget total voyage</p>
+          <p className="text-2xl font-bold text-gray-800">{euros(totalGeneral)}</p>
+          <p className="text-sm text-gray-400">{euros(Math.round(totalGeneral / 3))} / pers</p>
         </div>
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <p className="text-sm text-gray-500">Reste à payer</p>
+          <p className="text-sm text-gray-500">Déjà réglé aux prestataires</p>
+          <p className="text-2xl font-bold text-emerald-600">{euros(dejaPayeTotal)}</p>
+          <p className="text-sm text-gray-400">{totalGeneral > 0 ? Math.round((dejaPayeTotal / totalGeneral) * 100) : 0}% du budget</p>
+        </div>
+        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+          <p className="text-sm text-gray-500">Reste à régler aux prestataires</p>
           <p className="text-2xl font-bold text-orange-500">{euros(resteTotal)}</p>
-          <p className="text-sm text-gray-400">{euros(Math.round(resteTotal / 3))} / pers</p>
+          <p className="text-sm text-gray-400">~{euros(Math.round(resteTotal / 3))} / pers (selon qui paiera)</p>
         </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <p className="text-sm text-gray-500">Déjà payé</p>
-          <p className="text-2xl font-bold text-emerald-600">{euros(totalLog + totalAutres - resteTotal)}</p>
-        </div>
+      </div>
+
+      {/* Info pédagogique */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+        <p className="font-semibold">💡 Comment ça marche</p>
+        <p className="mt-1">Le "reste à régler" est ce qui est encore dû aux hôtels/prestataires. On ne sait pas encore qui paiera — peu importe qui le fait, les autres lui rembourseront. Ce n&apos;est pas une dette entre vous.</p>
+        <p className="mt-1">Pour enregistrer un virement déjà fait entre vous → onglet <strong>Virements entre nous</strong>.</p>
       </div>
 
       {/* Onglets */}
@@ -345,225 +310,147 @@ export default function PaiementsPage() {
         )}
 
         {/* ═══════════════════════════════════════════════════ */}
-        {/* ONGLETS PAR PERSONNE */}
+        {/* ONGLET : PROCHAINES ÉCHÉANCES */}
         {/* ═══════════════════════════════════════════════════ */}
-        {(['regis', 'isa', 'agathe'] as const).includes(onglet as 'regis' | 'isa' | 'agathe') && (() => {
-          const nomMap: Record<string, 'Régis' | 'Isa' | 'Agathe'> = { regis: 'Régis', isa: 'Isa', agathe: 'Agathe' }
-          const nom = nomMap[onglet]
-          const key = onglet as 'regis' | 'isa' | 'agathe'
-          const totalPaye = logements.reduce((s, r) => s + ((r[key] as number | null) ?? 0), 0)
-          const net = positionsNettes[nom as keyof typeof positionsNettes]
-          const aPayeDans = logements.filter(r => r[key] != null && (r[key] as number) > 0)
+        {onglet === 'echeances' && (
+          <div className="p-5 space-y-5">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+              <p className="font-semibold">📅 Comment lire cette section</p>
+              <p className="mt-1">Ce sont les paiements encore dus aux hébergements. <strong>On ne sait pas encore qui paiera</strong> — ça n&apos;a pas d&apos;importance. Celui qui paie se fera rembourser par les deux autres. Ces montants ne sont pas des dettes entre vous.</p>
+            </div>
 
-          // Paiements externes encore à faire (pas des remboursements entre nous)
-          const logRestants = logements.filter(r => r.reste_a_payer && r.reste_a_payer > 0)
-          const autresRestants = autres.filter(r => r.reste_par_personne && r.reste_par_personne > 0)
-          const futursPaiements = logRestants.reduce((s, r) => s + (r.reste_a_payer ?? 0), 0) / 3
-            + autresRestants.reduce((s, r) => s + (r.reste_par_personne ?? 0), 0)
-
-          return (
-            <div className="p-5 space-y-5">
-              {/* Encadrés explication */}
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
-                <p className="font-semibold mb-1">💡 Deux choses bien distinctes :</p>
-                <p>• <strong>Balance entre vous 3</strong> : qui a avancé plus que sa part → se règle par virement entre vous</p>
-                <p>• <strong>Futurs paiements</strong> : ce que vous devez encore aux hébergements/prestataires → chacun paie sa part</p>
+            {/* Total restant */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
+                <p className="text-sm text-orange-600 font-medium">Total encore à régler</p>
+                <p className="text-3xl font-bold text-orange-700 mt-1">{euros(resteTotal)}</p>
               </div>
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
+                <p className="text-sm text-orange-600 font-medium">Part estimée par personne</p>
+                <p className="text-3xl font-bold text-orange-700 mt-1">~{euros(Math.round(resteTotal / 3))}</p>
+                <p className="text-xs text-orange-500 mt-1">(selon qui paiera)</p>
+              </div>
+            </div>
 
-              {/* Résumé */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 text-center">
-                  <p className="text-xs text-teal-600 font-medium uppercase tracking-wide">A avancé (logements)</p>
-                  <p className="text-2xl font-bold text-teal-800 mt-1">{euros(totalPaye)}</p>
-                  <p className="text-xs text-teal-600 mt-1">sur {euros(partEquitable)} de part équitable</p>
-                </div>
-                <div className={`border rounded-xl p-4 text-center ${Math.abs(net) < 2 ? 'bg-emerald-50 border-emerald-200' : net > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-orange-50 border-orange-200'}`}>
-                  <p className={`text-xs font-medium uppercase tracking-wide ${Math.abs(net) < 2 ? 'text-emerald-600' : net > 0 ? 'text-emerald-600' : 'text-orange-600'}`}>
-                    Balance entre vous 3
-                  </p>
-                  <p className={`text-2xl font-bold mt-1 ${Math.abs(net) < 2 ? 'text-emerald-700' : net > 0 ? 'text-emerald-700' : 'text-orange-600'}`}>
-                    {Math.abs(net) < 2 ? '✅ Équilibré' : net > 0 ? `+${euros(net)}` : euros(net)}
-                  </p>
-                  <p className={`text-xs mt-1 ${Math.abs(net) < 2 ? 'text-emerald-600' : net > 0 ? 'text-emerald-600' : 'text-orange-600'}`}>
-                    {Math.abs(net) < 2 ? 'Rien à régler entre vous' : net > 0 ? 'On lui doit' : 'Doit aux autres'}
-                  </p>
-                </div>
-                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
-                  <p className="text-xs text-orange-600 font-medium uppercase tracking-wide">À payer aux prestataires</p>
-                  <p className="text-2xl font-bold text-orange-700 mt-1">{euros(futursPaiements)}</p>
-                  <p className="text-xs text-orange-600 mt-1">sa part des paiements restants</p>
+            {/* Échéances logements */}
+            {echeances.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">🏠 Soldes restants — hébergements</h3>
+                <div className="space-y-3">
+                  {echeances.map(r => (
+                    <div key={r.id} className="bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div>
+                          <p className="font-semibold text-gray-800">{r.description}</p>
+                          {r.date_echeance && (
+                            <p className="text-sm text-orange-600 mt-0.5">⏰ Échéance : {r.date_echeance}</p>
+                          )}
+                          {r.lien_reservation && r.lien_reservation.startsWith('http') && (
+                            <a href={r.lien_reservation} target="_blank" rel="noopener noreferrer"
+                              className="text-xs text-teal-600 hover:underline">🔗 Lien réservation</a>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-orange-600">{euros(r.reste_a_payer)}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">~{euros(Math.round((r.reste_a_payer ?? 0) / 3))} / pers</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
+            )}
 
-              {/* Ce que cette personne a payé */}
-              {aPayeDans.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">✅ A déjà contribué :</h3>
-                  <div className="space-y-2">
-                    {aPayeDans.map(r => (
-                      <div key={r.id} className="flex items-center justify-between bg-teal-50 border border-teal-100 rounded-lg px-4 py-2">
-                        <span className="text-sm text-gray-800">{r.description}</span>
-                        <span className="font-semibold text-teal-700">{euros(r[key] as number)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Paiements futurs aux prestataires */}
-              {(logRestants.length > 0 || autresRestants.length > 0) && (
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">📅 Paiements futurs aux prestataires (part de {nom}) :</h3>
-                  <div className="space-y-2">
-                    {logRestants.map(r => (
-                      <div key={r.id} className="flex items-center justify-between bg-orange-50 border border-orange-100 rounded-lg px-4 py-2">
-                        <div>
-                          <span className="text-sm text-gray-800">{r.description}</span>
-                          {r.date_echeance && <span className="text-xs text-orange-500 ml-2">· avant {r.date_echeance}</span>}
-                        </div>
-                        <span className="font-semibold text-orange-600">{euros((r.reste_a_payer ?? 0) / 3)}</span>
-                      </div>
-                    ))}
-                    {autresRestants.map(r => (
-                      <div key={r.id} className="flex items-center justify-between bg-orange-50 border border-orange-100 rounded-lg px-4 py-2">
-                        <div>
-                          <span className="text-sm text-gray-800">{r.description}</span>
-                          {r.situation && <p className="text-xs text-gray-500">{r.situation}</p>}
-                        </div>
-                        <span className="font-semibold text-orange-600">{euros(r.reste_par_personne)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })()}
-
-        {/* ═══════════════════════════════════════════════════ */}
-        {/* ONGLET : BALANCE */}
-        {/* ═══════════════════════════════════════════════════ */}
-        {onglet === 'balance' && (
-          <div className="p-5 space-y-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
-              <p className="font-semibold mb-1">💡 Comment lire cette page</p>
-              <p>• <strong>Balance entre vous 3</strong> = qui a avancé plus que sa part pour les logements. Si tout le monde a remboursé, cette balance est à zéro.</p>
-              <p className="mt-1">• <strong>Reste à payer aux hébergements</strong> = argent dû aux prestataires (hôtels, Airbnb…). Ce n&apos;est PAS un remboursement entre vous — c&apos;est chacun qui paiera sa part directement.</p>
-            </div>
-
-            {/* Positions nettes APRÈS virements effectués */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {(Object.entries(positionsNettes) as [string, number][]).map(([nom, net]) => (
-                <div key={nom} className={`border rounded-xl p-5 text-center ${
-                  net > 1 ? 'bg-emerald-50 border-emerald-200'
-                  : net < -1 ? 'bg-orange-50 border-orange-200'
-                  : 'bg-gray-50 border-gray-200'
-                }`}>
-                  <p className="font-bold text-gray-800 text-lg">{nom}</p>
-                  <p className="text-2xl font-bold mt-2">
-                    <span className={net > 1 ? 'text-emerald-600' : net < -1 ? 'text-orange-600' : 'text-gray-500'}>
-                      {net > 1 ? `+${euros(net)}` : euros(net)}
-                    </span>
-                  </p>
-                  <p className={`text-sm mt-1 font-medium ${net > 1 ? 'text-emerald-600' : net < -1 ? 'text-orange-600' : 'text-gray-400'}`}>
-                    {net > 1 ? '← on lui doit' : net < -1 ? '→ doit encore' : '✅ équilibré'}
-                  </p>
-                  <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500 space-y-0.5">
-                    <p>Payé : {euros(payeLog[nom as keyof typeof payeLog])}</p>
-                    <p>Part : {euros(partEquitable)}</p>
-                    {positionsBrutes[nom as keyof typeof positionsBrutes] !== net && (
-                      <p className="text-teal-600">Après virements : {euros(net)}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Virements encore nécessaires */}
-            {virementsNeeded.length > 0 ? (
-              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-                <h3 className="text-sm font-semibold text-orange-800 mb-3">💸 Virements encore nécessaires :</h3>
+            {/* Autres paiements restants */}
+            {autres.filter(r => r.reste_par_personne && r.reste_par_personne > 0).length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">🎯 Activités & transports restants</h3>
                 <div className="space-y-2">
-                  {virementsNeeded.map((v, i) => (
-                    <div key={i} className="flex items-center justify-between bg-white border border-orange-200 rounded-lg px-4 py-3">
+                  {autres.filter(r => r.reste_par_personne && r.reste_par_personne > 0).map(r => (
+                    <div key={r.id} className="bg-white border border-gray-200 rounded-xl px-5 py-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-gray-800">{r.description}</p>
+                        {r.situation && <p className="text-xs text-gray-500">{r.situation}</p>}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-orange-600">{euros((r.reste_par_personne ?? 0) * 3)}</p>
+                        <p className="text-xs text-gray-400">{euros(r.reste_par_personne)} / pers</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Qui a payé quoi — informatif */}
+            <details className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden">
+              <summary className="px-5 py-3 cursor-pointer text-sm font-medium text-gray-600 hover:text-gray-800">
+                📋 Historique — qui a payé quoi aux prestataires (informatif)
+              </summary>
+              <div className="px-5 pb-4 pt-2 space-y-2">
+                {(['Régis', 'Isa', 'Agathe'] as const).map(nom => {
+                  const key = nom === 'Régis' ? 'regis' : nom === 'Isa' ? 'isa' : 'agathe'
+                  const montant = payeParPersonne[nom]
+                  return montant > 0 ? (
+                    <div key={nom} className="flex items-center justify-between">
+                      <span className="text-sm text-gray-700">{nom} a avancé (logements)</span>
+                      <span className="font-semibold text-gray-800">{euros(montant)}</span>
+                    </div>
+                  ) : null
+                })}
+                <p className="text-xs text-gray-400 mt-2 italic">
+                  Ces montants reflètent qui a payé le prestataire, pas les dettes entre vous (déjà réglées par virement).
+                </p>
+              </div>
+            </details>
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════════ */}
+        {/* ONGLET : VIREMENTS ENTRE NOUS */}
+        {/* ═══════════════════════════════════════════════════ */}
+        {onglet === 'virements' && (
+          <div className="p-5 space-y-5">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+              <p className="font-semibold">💸 À quoi sert cet onglet ?</p>
+              <p className="mt-1">Utilisez cet onglet pour noter les virements que vous faites <strong>entre vous 3</strong> quand quelqu&apos;un a avancé de l&apos;argent pour les autres. Exemple : Régis paie l&apos;hôtel pour tout le monde → Isa et Agathe lui font un virement.</p>
+            </div>
+
+            <div className="flex justify-end">
+              <button onClick={() => setModalVirement(true)}
+                className="bg-teal-600 hover:bg-teal-700 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors">
+                + Enregistrer un virement
+              </button>
+            </div>
+
+            {virements.length === 0 ? (
+              <div className="text-center py-10 text-gray-400">
+                <p className="text-3xl mb-2">🤝</p>
+                <p className="font-medium text-gray-500">Aucun virement enregistré</p>
+                <p className="text-sm mt-1">Enregistre ici les transferts d&apos;argent entre vous 3.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {virements.map((v) => (
+                  <div key={v.id} className="flex items-center gap-4 bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm group">
+                    <div className="flex-1">
                       <p className="font-semibold text-gray-800">
                         <span className="text-orange-600">{v.de}</span>
                         <span className="mx-2 text-gray-400">→</span>
                         <span className="text-emerald-600">{v.vers}</span>
                       </p>
-                      <span className="text-xl font-bold text-gray-800">{euros(v.montant)}</span>
+                      {v.note && <p className="text-sm text-gray-500 mt-0.5">{v.note}</p>}
+                      {v.date_virement && <p className="text-xs text-gray-400">{v.date_virement}</p>}
                     </div>
-                  ))}
+                    <span className="text-xl font-bold text-gray-800">{euros(v.montant)}</span>
+                    <button onClick={() => supprimerVirement(v.id)}
+                      className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 p-1 transition-opacity" title="Supprimer">🗑️</button>
+                  </div>
+                ))}
+                <div className="flex justify-between text-sm text-gray-500 px-2">
+                  <span>Total des virements enregistrés</span>
+                  <span className="font-semibold">{euros(virements.reduce((s, v) => s + v.montant, 0))}</span>
                 </div>
-              </div>
-            ) : (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 text-center">
-                <p className="text-3xl mb-1">✅</p>
-                <p className="font-semibold text-emerald-700 text-lg">Les comptes sont équilibrés !</p>
-                <p className="text-sm text-emerald-600 mt-1">Personne ne doit rien à personne.</p>
-              </div>
-            )}
-
-            {/* Virements déjà effectués */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base font-semibold text-gray-800">🏦 Virements déjà effectués</h3>
-                <button onClick={() => setModalVirement(true)}
-                  className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-3 py-1.5 rounded-lg font-medium">
-                  + Enregistrer un virement
-                </button>
-              </div>
-              {virements.length === 0 ? (
-                <p className="text-sm text-gray-400 italic text-center py-4">
-                  Aucun virement enregistré. Si vous avez déjà fait des transferts entre vous, enregistre-les ici.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {virements.map((v) => (
-                    <div key={v.id} className="flex items-center gap-3 bg-teal-50 border border-teal-100 rounded-lg px-4 py-3 group">
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-800 text-sm">
-                          <span className="text-orange-600">{v.de}</span>
-                          <span className="mx-1.5 text-gray-400">→</span>
-                          <span className="text-emerald-600">{v.vers}</span>
-                          <span className="ml-2 font-bold">{euros(v.montant)}</span>
-                        </p>
-                        {v.note && <p className="text-xs text-gray-500 mt-0.5">{v.note}</p>}
-                        {v.date_virement && <p className="text-xs text-gray-400">{v.date_virement}</p>}
-                      </div>
-                      <button onClick={() => supprimerVirement(v.id)}
-                        className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 p-1 transition-opacity"
-                        title="Supprimer">🗑️</button>
-                    </div>
-                  ))}
-                  <p className="text-xs text-gray-400 mt-1">
-                    Total viré : {euros(virements.reduce((s, v) => s + v.montant, 0))}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Reste à payer aux prestataires — distinct de la balance entre vous */}
-            {resteTotal > 0 && (
-              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-                <p className="text-sm font-semibold text-orange-800 mb-1">
-                  📅 Paiements futurs aux prestataires — {euros(resteTotal)} au total ({euros(Math.round(resteTotal / 3))} / pers)
-                </p>
-                <p className="text-xs text-orange-600 mb-3">Ce n&apos;est PAS un remboursement entre vous — chacun paie sa part directement.</p>
-                <ul className="space-y-1">
-                  {logements.filter(r => r.reste_a_payer && r.reste_a_payer > 0).map(r => (
-                    <li key={r.id} className="text-sm text-orange-700 flex justify-between gap-4">
-                      <span>{r.description}{r.date_echeance && ` · avant ${r.date_echeance}`}</span>
-                      <span className="font-semibold whitespace-nowrap">{euros(r.reste_a_payer)} ({euros(Math.round((r.reste_a_payer ?? 0) / 3))}/pers)</span>
-                    </li>
-                  ))}
-                  {autres.filter(r => r.reste_par_personne && r.reste_par_personne > 0).map(r => (
-                    <li key={r.id} className="text-sm text-orange-700 flex justify-between gap-4">
-                      <span>{r.description}</span>
-                      <span className="font-semibold whitespace-nowrap">{euros(r.reste_par_personne)}/pers</span>
-                    </li>
-                  ))}
-                </ul>
               </div>
             )}
           </div>
