@@ -358,7 +358,6 @@ export default function PaiementsPage() {
           // Paiements externes encore à faire (pas des remboursements entre nous)
           const logRestants = logements.filter(r => r.reste_a_payer && r.reste_a_payer > 0)
           const autresRestants = autres.filter(r => r.reste_par_personne && r.reste_par_personne > 0)
-          const futursPaiements = logRestants.reduce((s, r) => s + (r.reste_a_payer ?? 0), 0) / 3
             + autresRestants.reduce((s, r) => s + (r.reste_par_personne ?? 0), 0)
 
           return (
