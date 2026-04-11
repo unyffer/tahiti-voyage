@@ -6,6 +6,7 @@ import { useState } from 'react'
 
 const liens = [
   { href: '/', label: 'Accueil', emoji: '🏠' },
+  { href: '/carte', label: 'Carte', emoji: '🗺️' },
   { href: '/planning', label: 'Planning', emoji: '📅' },
   { href: '/logements', label: 'Logements', emoji: '🏠' },
   { href: '/activites', label: 'Activités', emoji: '🎯' },

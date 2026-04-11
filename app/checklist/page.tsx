@@ -12,6 +12,8 @@ export default function ChecklistPage() {
   const [ajout, setAjout] = useState(false)
   const [nouvelItem, setNouvelItem] = useState('')
   const [nouvelleCategorie, setNouvelleCategorie] = useState('Divers 🎲')
+  const [editId, setEditId] = useState<number | null>(null)
+  const [editNom, setEditNom] = useState('')
 
   const charger = useCallback(async () => {
     const data = await fetch('/api/checklist').then(r => r.json())
@@ -37,11 +39,22 @@ export default function ChecklistPage() {
       body: JSON.stringify({ item: nouvelItem.trim(), categorie: nouvelleCategorie, checked: false })
     })
     const data = await res.json()
-    if (data.id) {
-      setItems(prev => [...prev, data])
-      setNouvelItem('')
-      setAjout(false)
-    }
+    if (data.id) { setItems(prev => [...prev, data]); setNouvelItem(''); setAjout(false) }
+  }
+
+  async function renommer(id: number) {
+    if (!editNom.trim()) { setEditId(null); return }
+    await fetch('/api/checklist', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, item: editNom.trim() })
+    })
+    setItems(prev => prev.map(i => i.id === id ? { ...i, item: editNom.trim() } : i))
+    setEditId(null)
+  }
+
+  function demarrerEdit(item: ChecklistItem) {
+    setEditId(item.id)
+    setEditNom(item.item)
   }
 
   async function supprimer(id: number) {
@@ -50,9 +63,7 @@ export default function ChecklistPage() {
   }
 
   async function toutDecocher() {
-    for (const item of items.filter(i => i.checked)) {
-      await toggle(item.id, false)
-    }
+    for (const item of items.filter(i => i.checked)) await toggle(item.id, false)
   }
 
   if (chargement) return <div className="flex items-center justify-center h-48 text-gray-400">Chargement...</div>
@@ -96,15 +107,11 @@ export default function ChecklistPage() {
         <div className="bg-white rounded-xl p-5 shadow-sm border border-teal-200">
           <h3 className="font-semibold text-gray-800 mb-3">Nouvel item</h3>
           <form onSubmit={ajouter} className="flex flex-wrap gap-3">
-            <input
-              type="text" value={nouvelItem} onChange={e => setNouvelItem(e.target.value)}
+            <input type="text" value={nouvelItem} onChange={e => setNouvelItem(e.target.value)}
               placeholder="Nom de l'item..." autoFocus
-              className="flex-1 min-w-40 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-            />
-            <select
-              value={nouvelleCategorie} onChange={e => setNouvelleCategorie(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-            >
+              className="flex-1 min-w-40 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+            <select value={nouvelleCategorie} onChange={e => setNouvelleCategorie(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
               {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             <button type="submit" className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-700">Ajouter</button>
@@ -126,22 +133,34 @@ export default function ChecklistPage() {
             <div className="divide-y divide-gray-100">
               {catItems.map(item => (
                 <div key={item.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 group">
-                  <label className="flex items-center gap-3 flex-1 cursor-pointer">
+                  {/* Checkbox */}
+                  <input type="checkbox" checked={item.checked} onChange={e => toggle(item.id, e.target.checked)}
+                    className="w-5 h-5 rounded text-teal-600 border-gray-300 focus:ring-teal-500 flex-shrink-0" />
+
+                  {/* Nom — mode édition ou affichage */}
+                  {editId === item.id ? (
                     <input
-                      type="checkbox" checked={item.checked} onChange={e => toggle(item.id, e.target.checked)}
-                      className="w-5 h-5 rounded text-teal-600 border-gray-300 focus:ring-teal-500"
+                      type="text" value={editNom} autoFocus
+                      onChange={e => setEditNom(e.target.value)}
+                      onBlur={() => renommer(item.id)}
+                      onKeyDown={e => { if (e.key === 'Enter') renommer(item.id); if (e.key === 'Escape') setEditId(null) }}
+                      className="flex-1 border border-teal-400 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
-                    <span className={`text-sm flex-1 ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                  ) : (
+                    <span
+                      className={`flex-1 text-sm cursor-pointer ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}`}
+                      onDoubleClick={() => demarrerEdit(item)}
+                      title="Double-cliquer pour renommer"
+                    >
                       {item.item}
                     </span>
-                  </label>
-                  <button
-                    onClick={() => supprimer(item.id)}
-                    className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 p-1 rounded text-xs transition-opacity"
-                    title="Supprimer"
-                  >
-                    🗑️
-                  </button>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => demarrerEdit(item)} className="text-teal-500 hover:text-teal-700 p-1 text-xs rounded" title="Renommer">✏️</button>
+                    <button onClick={() => supprimer(item.id)} className="text-red-400 hover:text-red-600 p-1 text-xs rounded" title="Supprimer">🗑️</button>
+                  </div>
                 </div>
               ))}
             </div>
