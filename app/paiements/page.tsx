@@ -351,37 +351,54 @@ export default function PaiementsPage() {
           const nomMap: Record<string, 'Régis' | 'Isa' | 'Agathe'> = { regis: 'Régis', isa: 'Isa', agathe: 'Agathe' }
           const nom = nomMap[onglet]
           const key = onglet as 'regis' | 'isa' | 'agathe'
-          const { totalPaye, net } = personneData(nom)
+          const totalPaye = logements.reduce((s, r) => s + ((r[key] as number | null) ?? 0), 0)
+          const net = positionsNettes[nom as keyof typeof positionsNettes]
           const aPayeDans = logements.filter(r => r[key] != null && (r[key] as number) > 0)
-          const encoreAttendus = logements.filter(r => r.reste_a_payer && r.reste_a_payer > 0)
-          const autresDus = autres.filter(r => r.reste_par_personne && r.reste_par_personne > 0)
+
+          // Paiements externes encore à faire (pas des remboursements entre nous)
+          const logRestants = logements.filter(r => r.reste_a_payer && r.reste_a_payer > 0)
+          const autresRestants = autres.filter(r => r.reste_par_personne && r.reste_par_personne > 0)
+          const futursPaiements = logRestants.reduce((s, r) => s + (r.reste_a_payer ?? 0), 0) / 3
+            + autresRestants.reduce((s, r) => s + (r.reste_par_personne ?? 0), 0)
 
           return (
             <div className="p-5 space-y-5">
-              {/* Résumé personne */}
+              {/* Encadrés explication */}
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+                <p className="font-semibold mb-1">💡 Deux choses bien distinctes :</p>
+                <p>• <strong>Balance entre vous 3</strong> : qui a avancé plus que sa part → se règle par virement entre vous</p>
+                <p>• <strong>Futurs paiements</strong> : ce que vous devez encore aux hébergements/prestataires → chacun paie sa part</p>
+              </div>
+
+              {/* Résumé */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 text-center">
-                  <p className="text-xs text-teal-600 font-medium uppercase tracking-wide">A payé (logements)</p>
+                  <p className="text-xs text-teal-600 font-medium uppercase tracking-wide">A avancé (logements)</p>
                   <p className="text-2xl font-bold text-teal-800 mt-1">{euros(totalPaye)}</p>
+                  <p className="text-xs text-teal-600 mt-1">sur {euros(partEquitable)} de part équitable</p>
                 </div>
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
-                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Part équitable</p>
-                  <p className="text-2xl font-bold text-gray-700 mt-1">{euros(partEquitable)}</p>
+                <div className={`border rounded-xl p-4 text-center ${Math.abs(net) < 2 ? 'bg-emerald-50 border-emerald-200' : net > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-orange-50 border-orange-200'}`}>
+                  <p className={`text-xs font-medium uppercase tracking-wide ${Math.abs(net) < 2 ? 'text-emerald-600' : net > 0 ? 'text-emerald-600' : 'text-orange-600'}`}>
+                    Balance entre vous 3
+                  </p>
+                  <p className={`text-2xl font-bold mt-1 ${Math.abs(net) < 2 ? 'text-emerald-700' : net > 0 ? 'text-emerald-700' : 'text-orange-600'}`}>
+                    {Math.abs(net) < 2 ? '✅ Équilibré' : net > 0 ? `+${euros(net)}` : euros(net)}
+                  </p>
+                  <p className={`text-xs mt-1 ${Math.abs(net) < 2 ? 'text-emerald-600' : net > 0 ? 'text-emerald-600' : 'text-orange-600'}`}>
+                    {Math.abs(net) < 2 ? 'Rien à régler entre vous' : net > 0 ? 'On lui doit' : 'Doit aux autres'}
+                  </p>
                 </div>
-                <div className={`border rounded-xl p-4 text-center ${net > 0 ? 'bg-emerald-50 border-emerald-200' : net < 0 ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>
-                  <p className={`text-xs font-medium uppercase tracking-wide ${net > 0 ? 'text-emerald-600' : net < 0 ? 'text-orange-600' : 'text-gray-500'}`}>
-                    {net > 0 ? 'On lui doit' : net < 0 ? 'Doit rembourser' : 'Équilibré'}
-                  </p>
-                  <p className={`text-2xl font-bold mt-1 ${net > 0 ? 'text-emerald-700' : net < 0 ? 'text-orange-600' : 'text-gray-600'}`}>
-                    {euros(Math.abs(net))}
-                  </p>
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
+                  <p className="text-xs text-orange-600 font-medium uppercase tracking-wide">À payer aux prestataires</p>
+                  <p className="text-2xl font-bold text-orange-700 mt-1">{euros(futursPaiements)}</p>
+                  <p className="text-xs text-orange-600 mt-1">sa part des paiements restants</p>
                 </div>
               </div>
 
               {/* Ce que cette personne a payé */}
               {aPayeDans.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-600 mb-2">✅ A contribué à :</h3>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">✅ A déjà contribué :</h3>
                   <div className="space-y-2">
                     {aPayeDans.map(r => (
                       <div key={r.id} className="flex items-center justify-between bg-teal-50 border border-teal-100 rounded-lg px-4 py-2">
@@ -393,36 +410,27 @@ export default function PaiementsPage() {
                 </div>
               )}
 
-              {/* Logements encore à payer */}
-              {encoreAttendus.length > 0 && (
+              {/* Paiements futurs aux prestataires */}
+              {(logRestants.length > 0 || autresRestants.length > 0) && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-600 mb-2">⏳ Logements à payer (reste global) :</h3>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">📅 Paiements futurs aux prestataires (part de {nom}) :</h3>
                   <div className="space-y-2">
-                    {encoreAttendus.map(r => (
+                    {logRestants.map(r => (
                       <div key={r.id} className="flex items-center justify-between bg-orange-50 border border-orange-100 rounded-lg px-4 py-2">
                         <div>
                           <span className="text-sm text-gray-800">{r.description}</span>
-                          {r.date_echeance && <span className="text-xs text-orange-500 ml-2">· échéance {r.date_echeance}</span>}
+                          {r.date_echeance && <span className="text-xs text-orange-500 ml-2">· avant {r.date_echeance}</span>}
                         </div>
-                        <span className="font-semibold text-orange-600">{euros(r.reste_a_payer)}</span>
+                        <span className="font-semibold text-orange-600">{euros((r.reste_a_payer ?? 0) / 3)}</span>
                       </div>
                     ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Autres à payer (sa part) */}
-              {autresDus.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-600 mb-2">🎯 Activités/transports restants (part de {nom}) :</h3>
-                  <div className="space-y-2">
-                    {autresDus.map(r => (
-                      <div key={r.id} className="flex items-center justify-between bg-purple-50 border border-purple-100 rounded-lg px-4 py-2">
+                    {autresRestants.map(r => (
+                      <div key={r.id} className="flex items-center justify-between bg-orange-50 border border-orange-100 rounded-lg px-4 py-2">
                         <div>
                           <span className="text-sm text-gray-800">{r.description}</span>
                           {r.situation && <p className="text-xs text-gray-500">{r.situation}</p>}
                         </div>
-                        <span className="font-semibold text-purple-700">{euros(r.reste_par_personne)}</span>
+                        <span className="font-semibold text-orange-600">{euros(r.reste_par_personne)}</span>
                       </div>
                     ))}
                   </div>
@@ -437,9 +445,11 @@ export default function PaiementsPage() {
         {/* ═══════════════════════════════════════════════════ */}
         {onglet === 'balance' && (
           <div className="p-5 space-y-6">
-            <p className="text-sm text-gray-500">
-              Basé sur les paiements logements (part équitable : {euros(partEquitable)}/pers), après déduction des virements déjà effectués.
-            </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+              <p className="font-semibold mb-1">💡 Comment lire cette page</p>
+              <p>• <strong>Balance entre vous 3</strong> = qui a avancé plus que sa part pour les logements. Si tout le monde a remboursé, cette balance est à zéro.</p>
+              <p className="mt-1">• <strong>Reste à payer aux hébergements</strong> = argent dû aux prestataires (hôtels, Airbnb…). Ce n&apos;est PAS un remboursement entre vous — c&apos;est chacun qui paiera sa part directement.</p>
+            </div>
 
             {/* Positions nettes APRÈS virements effectués */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -533,15 +543,24 @@ export default function PaiementsPage() {
               )}
             </div>
 
-            {/* Reste à payer sur les logements */}
+            {/* Reste à payer aux prestataires — distinct de la balance entre vous */}
             {resteTotal > 0 && (
               <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-                <p className="text-sm font-semibold text-orange-800 mb-2">⚠️ Reste encore à payer aux hébergements ({euros(resteTotal)}) :</p>
+                <p className="text-sm font-semibold text-orange-800 mb-1">
+                  📅 Paiements futurs aux prestataires — {euros(resteTotal)} au total ({euros(Math.round(resteTotal / 3))} / pers)
+                </p>
+                <p className="text-xs text-orange-600 mb-3">Ce n&apos;est PAS un remboursement entre vous — chacun paie sa part directement.</p>
                 <ul className="space-y-1">
                   {logements.filter(r => r.reste_a_payer && r.reste_a_payer > 0).map(r => (
-                    <li key={r.id} className="text-sm text-orange-700 flex justify-between">
+                    <li key={r.id} className="text-sm text-orange-700 flex justify-between gap-4">
                       <span>{r.description}{r.date_echeance && ` · avant ${r.date_echeance}`}</span>
-                      <span className="font-semibold">{euros(r.reste_a_payer)}</span>
+                      <span className="font-semibold whitespace-nowrap">{euros(r.reste_a_payer)} ({euros(Math.round((r.reste_a_payer ?? 0) / 3))}/pers)</span>
+                    </li>
+                  ))}
+                  {autres.filter(r => r.reste_par_personne && r.reste_par_personne > 0).map(r => (
+                    <li key={r.id} className="text-sm text-orange-700 flex justify-between gap-4">
+                      <span>{r.description}</span>
+                      <span className="font-semibold whitespace-nowrap">{euros(r.reste_par_personne)}/pers</span>
                     </li>
                   ))}
                 </ul>

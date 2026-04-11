@@ -2,13 +2,20 @@
 
 import { useEffect, useState, useCallback } from 'react'
 
-interface ChecklistItem { id: number; item: string; categorie: string; checked: boolean }
+interface ChecklistItem { id: number; item: string; categorie: string; checked: boolean; personne: string }
 
 const CATEGORIES = ['Mer 🌊', 'Rando 🥾', 'Vêtements 👕', 'Tech 📸', 'Divers 🎲']
+const PERSONNES = ['Commun', 'Régis', 'Isa', 'Agathe'] as const
+type Personne = typeof PERSONNES[number]
+
+const PERSONNE_EMOJI: Record<Personne, string> = {
+  Commun: '👥', Régis: '👤', Isa: '👤', Agathe: '👤'
+}
 
 export default function ChecklistPage() {
   const [items, setItems] = useState<ChecklistItem[]>([])
   const [chargement, setChargement] = useState(true)
+  const [onglet, setOnglet] = useState<Personne>('Commun')
   const [ajout, setAjout] = useState(false)
   const [nouvelItem, setNouvelItem] = useState('')
   const [nouvelleCategorie, setNouvelleCategorie] = useState('Divers 🎲')
@@ -36,7 +43,7 @@ export default function ChecklistPage() {
     if (!nouvelItem.trim()) return
     const res = await fetch('/api/checklist', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item: nouvelItem.trim(), categorie: nouvelleCategorie, checked: false })
+      body: JSON.stringify({ item: nouvelItem.trim(), categorie: nouvelleCategorie, checked: false, personne: onglet })
     })
     const data = await res.json()
     if (data.id) { setItems(prev => [...prev, data]); setNouvelItem(''); setAjout(false) }
@@ -52,128 +59,148 @@ export default function ChecklistPage() {
     setEditId(null)
   }
 
-  function demarrerEdit(item: ChecklistItem) {
-    setEditId(item.id)
-    setEditNom(item.item)
-  }
-
   async function supprimer(id: number) {
     setItems(prev => prev.filter(i => i.id !== id))
     await fetch(`/api/checklist?id=${id}`, { method: 'DELETE' })
   }
 
   async function toutDecocher() {
-    for (const item of items.filter(i => i.checked)) await toggle(item.id, false)
+    for (const item of itemsFiltres.filter(i => i.checked)) await toggle(item.id, false)
   }
 
   if (chargement) return <div className="flex items-center justify-center h-48 text-gray-400">Chargement...</div>
 
-  const categories = [...new Set(items.map(i => i.categorie))].sort()
-  const nbCoches = items.filter(i => i.checked).length
-  const total = items.length
+  const itemsFiltres = items.filter(i => (i.personne ?? 'Commun') === onglet)
+  const categories = [...new Set(itemsFiltres.map(i => i.categorie))].sort()
+  const nbCoches = itemsFiltres.filter(i => i.checked).length
+  const total = itemsFiltres.length
+
+  // Stats par personne pour les badges
+  const statsParPersonne = PERSONNES.reduce((acc, p) => {
+    const its = items.filter(i => (i.personne ?? 'Commun') === p)
+    acc[p] = { total: its.length, coches: its.filter(i => i.checked).length }
+    return acc
+  }, {} as Record<Personne, { total: number; coches: number }>)
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">✅ Checklist</h1>
-          <p className="text-gray-500 mt-1">{nbCoches} / {total} items cochés</p>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-800">✅ Checklist</h1>
+        <p className="text-gray-500 mt-1">Liste à emporter — par personne</p>
+      </div>
+
+      {/* Onglets par personne */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="flex overflow-x-auto border-b border-gray-200">
+          {PERSONNES.map((p) => {
+            const s = statsParPersonne[p]
+            return (
+              <button key={p} onClick={() => setOnglet(p)}
+                className={`flex-shrink-0 flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors border-b-2 ${
+                  onglet === p
+                    ? 'border-teal-600 text-teal-700 bg-teal-50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <span>{PERSONNE_EMOJI[p]}</span>
+                <span>{p}</span>
+                {s.total > 0 && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                    s.coches === s.total ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {s.coches}/{s.total}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
-        <div className="flex gap-2">
+
+        {/* Barre de progression */}
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3">
+          <div className="flex-1 bg-gray-200 rounded-full h-2">
+            <div className="bg-teal-500 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${total > 0 ? (nbCoches / total) * 100 : 0}%` }} />
+          </div>
+          <span className="text-sm font-semibold text-teal-700 w-16 text-right">
+            {total > 0 ? Math.round((nbCoches / total) * 100) : 0}%
+          </span>
           {nbCoches > 0 && (
-            <button onClick={toutDecocher} className="text-sm text-gray-500 hover:text-red-500 border border-gray-200 hover:border-red-300 px-3 py-1.5 rounded-lg transition-colors">
-              Tout décocher
+            <button onClick={toutDecocher} className="text-xs text-gray-400 hover:text-red-500 transition-colors">
+              Décocher
             </button>
           )}
-          <button onClick={() => setAjout(!ajout)} className="bg-teal-600 hover:bg-teal-700 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors">
+          <button onClick={() => setAjout(!ajout)}
+            className="bg-teal-600 hover:bg-teal-700 text-white text-xs px-3 py-1.5 rounded-lg font-medium transition-colors">
             + Ajouter
           </button>
         </div>
-      </div>
 
-      {/* Barre de progression */}
-      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-gray-600">Progression</span>
-          <span className="text-sm font-bold text-teal-700">{total > 0 ? Math.round((nbCoches / total) * 100) : 0}%</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2.5">
-          <div className="bg-teal-500 h-2.5 rounded-full transition-all duration-300" style={{ width: `${total > 0 ? (nbCoches / total) * 100 : 0}%` }} />
-        </div>
-      </div>
-
-      {/* Formulaire ajout */}
-      {ajout && (
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-teal-200">
-          <h3 className="font-semibold text-gray-800 mb-3">Nouvel item</h3>
-          <form onSubmit={ajouter} className="flex flex-wrap gap-3">
-            <input type="text" value={nouvelItem} onChange={e => setNouvelItem(e.target.value)}
-              placeholder="Nom de l'item..." autoFocus
-              className="flex-1 min-w-40 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
-            <select value={nouvelleCategorie} onChange={e => setNouvelleCategorie(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <button type="submit" className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-700">Ajouter</button>
-            <button type="button" onClick={() => setAjout(false)} className="text-gray-500 px-4 py-2 rounded-lg text-sm border border-gray-200 hover:bg-gray-50">Annuler</button>
-          </form>
-        </div>
-      )}
-
-      {/* Items par catégorie */}
-      {categories.map(cat => {
-        const catItems = items.filter(i => i.categorie === cat)
-        const catCoches = catItems.filter(i => i.checked).length
-        return (
-          <div key={cat} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="bg-gray-50 border-b border-gray-200 px-5 py-3 flex items-center justify-between">
-              <h2 className="font-semibold text-gray-700">{cat}</h2>
-              <span className="text-xs text-gray-500">{catCoches}/{catItems.length}</span>
-            </div>
-            <div className="divide-y divide-gray-100">
-              {catItems.map(item => (
-                <div key={item.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 group">
-                  {/* Checkbox */}
-                  <input type="checkbox" checked={item.checked} onChange={e => toggle(item.id, e.target.checked)}
-                    className="w-5 h-5 rounded text-teal-600 border-gray-300 focus:ring-teal-500 flex-shrink-0" />
-
-                  {/* Nom — mode édition ou affichage */}
-                  {editId === item.id ? (
-                    <input
-                      type="text" value={editNom} autoFocus
-                      onChange={e => setEditNom(e.target.value)}
-                      onBlur={() => renommer(item.id)}
-                      onKeyDown={e => { if (e.key === 'Enter') renommer(item.id); if (e.key === 'Escape') setEditId(null) }}
-                      className="flex-1 border border-teal-400 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    />
-                  ) : (
-                    <span
-                      className={`flex-1 text-sm cursor-pointer ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}`}
-                      onDoubleClick={() => demarrerEdit(item)}
-                      title="Double-cliquer pour renommer"
-                    >
-                      {item.item}
-                    </span>
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => demarrerEdit(item)} className="text-teal-500 hover:text-teal-700 p-1 text-xs rounded" title="Renommer">✏️</button>
-                    <button onClick={() => supprimer(item.id)} className="text-red-400 hover:text-red-600 p-1 text-xs rounded" title="Supprimer">🗑️</button>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {/* Formulaire ajout */}
+        {ajout && (
+          <div className="px-5 py-4 bg-teal-50 border-b border-teal-100">
+            <form onSubmit={ajouter} className="flex flex-wrap gap-3">
+              <input type="text" value={nouvelItem} onChange={e => setNouvelItem(e.target.value)}
+                placeholder={`Item pour ${onglet}...`} autoFocus
+                className="flex-1 min-w-40 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+              <select value={nouvelleCategorie} onChange={e => setNouvelleCategorie(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <button type="submit" className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-700">Ajouter</button>
+              <button type="button" onClick={() => setAjout(false)} className="text-gray-500 px-3 py-2 rounded-lg text-sm border border-gray-200 hover:bg-gray-50">✕</button>
+            </form>
           </div>
-        )
-      })}
+        )}
 
-      {items.length === 0 && !chargement && (
-        <div className="text-center py-12 text-gray-400">
-          <p className="text-4xl mb-2">📦</p>
-          <p>La checklist est vide — clique &quot;Ajouter&quot; pour commencer !</p>
-        </div>
-      )}
+        {/* Items */}
+        {categories.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <p className="text-3xl mb-2">{PERSONNE_EMOJI[onglet]}</p>
+            <p className="font-medium text-gray-500">{onglet === 'Commun' ? 'Aucun item commun' : `Aucun item pour ${onglet}`}</p>
+            <p className="text-sm mt-1">Clique &quot;+ Ajouter&quot; pour créer un item dans cet onglet.</p>
+          </div>
+        ) : (
+          categories.map(cat => {
+            const catItems = itemsFiltres.filter(i => i.categorie === cat)
+            const catCoches = catItems.filter(i => i.checked).length
+            return (
+              <div key={cat}>
+                <div className="bg-gray-50 border-b border-gray-200 px-5 py-2 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-gray-600">{cat}</h2>
+                  <span className="text-xs text-gray-400">{catCoches}/{catItems.length}</span>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {catItems.map(item => (
+                    <div key={item.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 group">
+                      <input type="checkbox" checked={item.checked} onChange={e => toggle(item.id, e.target.checked)}
+                        className="w-5 h-5 rounded text-teal-600 border-gray-300 focus:ring-teal-500 flex-shrink-0" />
+                      {editId === item.id ? (
+                        <input type="text" value={editNom} autoFocus
+                          onChange={e => setEditNom(e.target.value)}
+                          onBlur={() => renommer(item.id)}
+                          onKeyDown={e => { if (e.key === 'Enter') renommer(item.id); if (e.key === 'Escape') setEditId(null) }}
+                          className="flex-1 border border-teal-400 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                      ) : (
+                        <span onDoubleClick={() => { setEditId(item.id); setEditNom(item.item) }}
+                          className={`flex-1 text-sm cursor-pointer ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                          {item.item}
+                        </span>
+                      )}
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => { setEditId(item.id); setEditNom(item.item) }}
+                          className="text-teal-500 hover:text-teal-700 p-1 text-xs" title="Renommer">✏️</button>
+                        <button onClick={() => supprimer(item.id)}
+                          className="text-red-400 hover:text-red-600 p-1 text-xs" title="Supprimer">🗑️</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
     </div>
   )
 }

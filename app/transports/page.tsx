@@ -81,16 +81,28 @@ export default function TransportsPage() {
     setTransports(prev => prev.filter(t => t.id !== id))
   }
 
+  // Vols internes Air Tahiti — données fixes de la réservation
+  const VOLS_INTERNES = [
+    { vol: 'VT211', de: 'Moorea (MOZ Temae)', vers: 'Raiatea (RFP Uturoa)', depart: '10:50', arrivee: '11:35', date: '14 sept. 2026' },
+    { vol: 'VT730', de: 'Raiatea (RFP Uturoa)', vers: 'Maupiti (MAU)', depart: '13:30', arrivee: '13:55', date: '19 sept. 2026' },
+    { vol: 'VT736', de: 'Maupiti (MAU)', vers: 'Raiatea (RFP Uturoa)', depart: '09:20', arrivee: '09:45', date: '22 sept. 2026' },
+    { vol: 'VT420', de: 'Raiatea (RFP Uturoa)', vers: 'Bora Bora (BOB Motu Mute)', depart: '18:30', arrivee: '18:50', date: '22 sept. 2026' },
+    { vol: 'VT462', de: 'Bora Bora (BOB Motu Mute)', vers: 'Tahiti (PPT Faaa)', depart: '08:00', arrivee: '08:50', date: '29 sept. 2026' },
+  ]
+
   if (chargement) return <div className="flex items-center justify-center h-48 text-gray-400">Chargement...</div>
 
   const total = transports.reduce((s, t) => s + (t.prix ?? 0), 0)
   const reste = transports.filter(t => t.statut !== 'paye').reduce((s, t) => s + (t.prix ?? 0), 0)
 
-  // Grouper par type
+  // Grouper par type — exclure les vols internes déjà dans le tableau fixe
   const groupes = ['vol', 'ferry', 'voiture', 'taxi', 'autre'].map(type => ({
     type,
     config: TYPE_CONFIG[type],
-    items: transports.filter(t => getType(t.nom) === type)
+    items: transports.filter(t => {
+      if (type === 'vol') return getType(t.nom) === 'vol' && !t.nom.startsWith('VT')
+      return getType(t.nom) === type
+    })
   })).filter(g => g.items.length > 0)
 
   return (
@@ -158,6 +170,48 @@ export default function TransportsPage() {
           </div>
         </section>
       ))}
+
+      {/* Section vols internes Air Tahiti — données fixes */}
+      <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-indigo-700 text-white px-5 py-3 flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold text-lg">✈️ Vols internes Air Tahiti — Pass inter-îles</h2>
+            <p className="text-indigo-200 text-xs mt-0.5">Pass haute saison · 585 €/pers · Classe Y · ✅ Payé</p>
+          </div>
+          <span className="text-white/80 font-semibold">1 755 €</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Vol</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">De</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Vers</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Date</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Départ</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Arrivée</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {VOLS_INTERNES.map((v, i) => (
+                <tr key={i} className="hover:bg-indigo-50">
+                  <td className="px-4 py-3">
+                    <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded text-xs">{v.vol}</span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-700">{v.de}</td>
+                  <td className="px-4 py-3 text-gray-700">{v.vers}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs">{v.date}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800">{v.depart}</td>
+                  <td className="px-4 py-3 text-gray-600">{v.arrivee}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-5 py-3 bg-amber-50 border-t border-amber-200 text-xs text-amber-800">
+          ⚠️ Attention : horaires mouvants — vérifier les horaires définitifs avant de partir. Escale Raiatea entre Maupiti et Bora Bora.
+        </div>
+      </section>
 
       {transports.length === 0 && (
         <div className="text-center py-12 text-gray-400">
