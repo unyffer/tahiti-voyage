@@ -11,12 +11,12 @@ import { apiFetch } from '@/lib/toast'
 
 interface Activite {
   id: number; ile: string; categorie: string; nom: string; prix: number | null
-  lien: string | null; commentaire: string | null; gratuit: boolean; statut: string | null
+  lien: string | null; liens: string[]; commentaire: string | null; gratuit: boolean; statut: string | null
 }
 
 const VIDE: Omit<Activite, 'id'> = {
   ile: 'Tahiti', categorie: 'activite', nom: '', prix: null,
-  lien: null, commentaire: null, gratuit: false, statut: 'a_faire'
+  lien: null, liens: [], commentaire: null, gratuit: false, statut: 'a_faire'
 }
 
 function euros(n: number | null | undefined) {
@@ -46,10 +46,14 @@ export default function ActivitesPage() {
   async function sauvegarder(e: React.FormEvent) {
     e.preventDefault()
     setSauvegarde(true)
+    const payload = {
+      ...modal,
+      liens: (modal?.liens ?? []).filter(l => l.trim() !== ''),
+    }
     const { ok } = await apiFetch('/api/activites', {
       method: modal?.id ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(modal)
+      body: JSON.stringify(payload)
     })
     if (ok) { setModal(null); await charger() }
     setSauvegarde(false)
@@ -141,11 +145,20 @@ export default function ActivitesPage() {
                       )}
                     </div>
                     {a.commentaire && <p className="text-sm text-gray-500 mt-0.5">{a.commentaire}</p>}
-                    {a.lien && <a href={a.lien} target="_blank" rel="noopener noreferrer" className="text-xs text-teal-600 hover:underline">🔗 Lien</a>}
+                    {(a.liens?.length > 0 || a.lien) && (
+                      <div className="flex flex-wrap gap-2 mt-0.5">
+                        {(a.liens?.length > 0 ? a.liens : a.lien ? [a.lien] : []).map((l, i) => (
+                          <a key={i} href={l} target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-teal-600 hover:underline">
+                            🔗 Lien {a.liens?.length > 1 || (a.liens?.length === 0 && a.lien) ? i + 1 : ''}
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {a.prix && <span className="font-semibold text-gray-700 whitespace-nowrap">{euros(a.prix)}</span>}
-                    <button onClick={() => setModal(a)} className="text-teal-600 hover:text-teal-700 p-1" title="Modifier">✏️</button>
+                    <button onClick={() => setModal({ ...a, liens: a.liens ?? [] })} className="text-teal-600 hover:text-teal-700 p-1" title="Modifier">✏️</button>
                     <button onClick={() => supprimer(a.id)} className="text-red-400 hover:text-red-600 p-1" title="Supprimer">🗑️</button>
                   </div>
                 </div>
@@ -168,7 +181,43 @@ export default function ActivitesPage() {
                 options={[{ value: 'a_faire', label: '⏳ À faire' }, { value: 'reserve', label: '📋 Réservé' }, { value: 'paye', label: '✅ Payé' }]} />
             </div>
             <FormField label="Commentaire" name="commentaire" type="textarea" value={modal.commentaire ?? ''} onChange={(v) => setModal(p => ({ ...p, commentaire: v || null }))} />
-            <FormField label="Lien" name="lien" type="url" value={modal.lien ?? ''} onChange={(v) => setModal(p => ({ ...p, lien: v || null }))} />
+            {/* Liens multiples */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Liens</label>
+              <div className="space-y-2">
+                {(modal.liens ?? []).map((lien, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input
+                      type="url"
+                      value={lien}
+                      onChange={(e) => setModal(p => {
+                        const liens = [...(p?.liens ?? [])]
+                        liens[i] = e.target.value
+                        return { ...p, liens }
+                      })}
+                      placeholder="https://..."
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setModal(p => {
+                        const liens = (p?.liens ?? []).filter((_, j) => j !== i)
+                        return { ...p, liens }
+                      })}
+                      className="text-red-400 hover:text-red-600 px-2"
+                      title="Supprimer ce lien"
+                    >✕</button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setModal(p => ({ ...p, liens: [...(p?.liens ?? []), ''] }))}
+                  className="text-sm text-teal-600 hover:text-teal-700 font-medium"
+                >
+                  + Ajouter un lien
+                </button>
+              </div>
+            </div>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={modal.gratuit ?? false} onChange={(e) => setModal(p => ({ ...p, gratuit: e.target.checked }))}
                 className="w-4 h-4 rounded text-teal-600" />

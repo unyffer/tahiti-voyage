@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { supabase } from '@/lib/supabase'
 import { ILES, BUDGET_TOTAL, BUDGET_PAR_PERSONNE } from '@/lib/constants'
 import Link from 'next/link'
+import Countdown from '@/components/Countdown'
 
 function euros(n: number | null | undefined) {
   if (n == null) return '–'
@@ -35,6 +36,7 @@ export default async function DashboardPage() {
         <p className="text-teal-100 text-lg">
           4 septembre → 2 octobre · 28 nuits · Régis · Isa · Agathe
         </p>
+        <Countdown />
         <div className="mt-4 flex flex-wrap gap-3">
           {ILES.map((ile) => (
             <Link

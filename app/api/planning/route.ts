@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
 export async function GET() {
   const { data, error } = await supabase
@@ -15,7 +16,7 @@ export async function GET() {
 export async function PATCH(request: NextRequest) {
   const body = await request.json()
   const { id, ...updates } = body
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseAdmin()
     .from('planning')
     .update(updates)
     .eq('id', id)

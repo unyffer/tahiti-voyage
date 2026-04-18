@@ -45,6 +45,7 @@ export interface ActiviteRow {
   nom: string
   prix: number | null
   lien: string | null
+  liens: string[]
   commentaire: string | null
   gratuit: boolean
   statut: 'a_faire' | 'reserve' | 'paye' | null
