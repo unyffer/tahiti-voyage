@@ -118,8 +118,15 @@ export default function ActivitesPage() {
         const visibles = filtreIle === 'toutes' ? acts : filtrees.filter(a => a.ile?.toLowerCase().includes(ile.nom.toLowerCase()))
         if (visibles.length === 0 && filtreIle !== 'toutes') return null
         if (acts.length === 0) return null
+
+        // Split into confirmed (reserved/paid) vs ideas
+        const confirmees = acts.filter(a => a.statut === 'reserve' || a.statut === 'paye')
+        const idees = acts.filter(a => !a.statut || a.statut === 'a_faire')
+
         return (
           <div key={ile.slug} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+
+            {/* Island header */}
             <div className={`${ile.couleur} px-5 py-3 flex items-center justify-between`}>
               <Link href={`/iles/${ile.slug}`} className="text-white font-semibold text-lg hover:text-white/80">
                 {ile.emoji} {ile.nom}
@@ -131,39 +138,91 @@ export default function ActivitesPage() {
                 + Ajouter
               </button>
             </div>
-            <div className="divide-y divide-gray-100">
-              {acts.map((a) => (
-                <div key={a.id} className="flex items-start justify-between gap-3 px-5 py-3 hover:bg-gray-50">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-gray-800">{a.nom}</span>
-                      {a.gratuit && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">Gratuit</span>}
-                      {a.statut && a.statut !== 'a_faire' && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${a.statut === 'paye' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                          {STATUT_LABELS[a.statut]}
-                        </span>
-                      )}
-                    </div>
-                    {a.commentaire && <p className="text-sm text-gray-500 mt-0.5">{a.commentaire}</p>}
-                    {(a.liens?.length > 0 || a.lien) && (
-                      <div className="flex flex-wrap gap-2 mt-0.5">
-                        {(a.liens?.length > 0 ? a.liens : a.lien ? [a.lien] : []).map((l, i) => (
-                          <a key={i} href={l} target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-teal-600 hover:underline">
-                            🔗 Lien {a.liens?.length > 1 || (a.liens?.length === 0 && a.lien) ? i + 1 : ''}
-                          </a>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {a.prix && <span className="font-semibold text-gray-700 whitespace-nowrap">{euros(a.prix)}</span>}
-                    <button onClick={() => setModal({ ...a, liens: a.liens ?? [] })} className="text-teal-600 hover:text-teal-700 p-1" title="Modifier">✏️</button>
-                    <button onClick={() => supprimer(a.id)} className="text-red-400 hover:text-red-600 p-1" title="Supprimer">🗑️</button>
-                  </div>
+
+            {/* ── CONFIRMÉES (reserve / paye) ── */}
+            {confirmees.length > 0 && (
+              <div>
+                <div className="px-5 py-2 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
+                    ✅ Confirmées · {confirmees.length}
+                  </span>
+                  <Link
+                    href="/paiements"
+                    className="text-xs text-emerald-600 hover:text-emerald-800 font-medium transition-colors"
+                  >
+                    Détail financier → Paiements
+                  </Link>
                 </div>
-              ))}
-            </div>
+                <div className="divide-y divide-gray-100">
+                  {confirmees.map((a) => (
+                    <div key={a.id} className="flex items-center justify-between gap-3 px-5 py-2.5 hover:bg-emerald-50/40">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <span className="font-medium text-gray-800 truncate">{a.nom}</span>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
+                            a.statut === 'paye'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}
+                        >
+                          {STATUT_LABELS[a.statut ?? 'a_faire']}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button onClick={() => setModal({ ...a, liens: a.liens ?? [] })} className="text-teal-600 hover:text-teal-700 p-1" title="Modifier">✏️</button>
+                        <button onClick={() => supprimer(a.id)} className="text-red-400 hover:text-red-600 p-1" title="Supprimer">🗑️</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── IDÉES (a_faire) ── */}
+            {idees.length > 0 && (
+              <div>
+                {confirmees.length > 0 && (
+                  <div className="px-5 py-2 bg-amber-50 border-y border-amber-100">
+                    <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
+                      💡 Idées · {idees.length}
+                    </span>
+                  </div>
+                )}
+                <div className="divide-y divide-gray-100">
+                  {idees.map((a) => (
+                    <div key={a.id} className="flex items-start justify-between gap-3 px-5 py-3 hover:bg-gray-50">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-gray-800">{a.nom}</span>
+                          {a.gratuit && (
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">Gratuit</span>
+                          )}
+                        </div>
+                        {a.commentaire && (
+                          <p className="text-sm text-gray-500 mt-0.5">{a.commentaire}</p>
+                        )}
+                        {(a.liens?.length > 0 || a.lien) && (
+                          <div className="flex flex-wrap gap-2 mt-0.5">
+                            {(a.liens?.length > 0 ? a.liens : a.lien ? [a.lien] : []).map((l, i) => (
+                              <a key={i} href={l} target="_blank" rel="noopener noreferrer"
+                                className="text-xs text-teal-600 hover:underline">
+                                🔗 Lien {a.liens?.length > 1 || (a.liens?.length === 0 && a.lien) ? i + 1 : ''}
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {a.prix && <span className="font-semibold text-gray-700 whitespace-nowrap">{euros(a.prix)}</span>}
+                        <button onClick={() => setModal({ ...a, liens: a.liens ?? [] })} className="text-teal-600 hover:text-teal-700 p-1" title="Modifier">✏️</button>
+                        <button onClick={() => supprimer(a.id)} className="text-red-400 hover:text-red-600 p-1" title="Supprimer">🗑️</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
           </div>
         )
       })}
@@ -178,7 +237,7 @@ export default function ActivitesPage() {
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Prix total (€)" name="prix" type="number" value={modal.prix ?? ''} onChange={(v) => setModal(p => ({ ...p, prix: v ? Number(v) : null }))} />
               <FormField label="Statut" name="statut" type="select" value={modal.statut ?? ''} onChange={(v) => setModal(p => ({ ...p, statut: v || null }))}
-                options={[{ value: 'a_faire', label: '⏳ À faire' }, { value: 'reserve', label: '📋 Réservé' }, { value: 'paye', label: '✅ Payé' }]} />
+                options={[{ value: 'a_faire', label: '💡 Idée (à faire)' }, { value: 'reserve', label: '📋 Réservé' }, { value: 'paye', label: '✅ Payé' }]} />
             </div>
             <FormField label="Commentaire" name="commentaire" type="textarea" value={modal.commentaire ?? ''} onChange={(v) => setModal(p => ({ ...p, commentaire: v || null }))} />
             {/* Liens multiples */}
