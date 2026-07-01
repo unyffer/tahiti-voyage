@@ -79,6 +79,7 @@ export default function ChecklistPage() {
   }
 
   async function supprimer(id: number) {
+    if (!confirm('Supprimer cet item définitivement ?')) return
     const { ok } = await apiFetch(`/api/checklist?id=${id}`, { method: 'DELETE' })
     if (ok) setItems(prev => prev.filter(i => i.id !== id))
   }
@@ -227,11 +228,11 @@ export default function ChecklistPage() {
                             className={`flex-1 text-sm cursor-pointer ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}`}>
                             {item.item}
                           </span>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1">
                             <button onClick={() => { setEditId(item.id); setEditNom(item.item); setEditCat(item.categorie); setEditCatCustom('') }}
-                              className="text-teal-500 hover:text-teal-700 p-1 text-xs" title="Modifier">✏️</button>
+                              className="text-teal-400 hover:text-teal-600 p-1.5 rounded-lg hover:bg-teal-50 transition-colors text-sm" title="Modifier">✏️</button>
                             <button onClick={() => supprimer(item.id)}
-                              className="text-red-400 hover:text-red-600 p-1 text-xs" title="Supprimer">🗑️</button>
+                              className="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors text-sm" title="Supprimer">🗑️</button>
                           </div>
                         </div>
                       )}
