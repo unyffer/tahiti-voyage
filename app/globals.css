@@ -2,21 +2,57 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #ffffff;
+  overscroll-behavior: none;
+}
+
+/* iOS safe area */
+:root {
+  --sab: env(safe-area-inset-bottom, 0px);
 }
 
 /* Scrollbar discrète */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 3px;
+  border-radius: 2px;
+}
+
+/* Masquer scrollbar pour scroll horizontal */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Inputs */
+input, textarea, select {
+  outline: none;
+}
+input:focus, textarea:focus, select:focus {
+  box-shadow: 0 0 0 2px #0284c7;
+  border-color: #0284c7 !important;
+}
+
+/* Active states natifs */
+button:active, a:active {
+  opacity: 0.8;
 }

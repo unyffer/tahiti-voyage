@@ -1,30 +1,63 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import Nav from '@/components/Nav'
+import BottomNav from '@/components/BottomNav'
 import { RoleProvider } from '@/components/RoleContext'
 import Toast from '@/components/Toast'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Voyage Tahiti 2026',
-  description: 'Planification du voyage à Tahiti — Régis, Isa, Agathe',
+  title: 'Tahiti 2026',
+  description: 'Notre voyage en Polynésie française — Régis, Isa, Agathe',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Tahiti 2026',
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
+  },
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+  themeColor: '#0284C7',
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <body className={`${inter.className} bg-gray-50 min-h-screen`}>
+      <head>
+        <link rel="apple-touch-icon" href="/icon.svg" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      </head>
+      <body className={`${inter.className} bg-white min-h-screen`}>
         <RoleProvider>
-          <Nav />
-          <main className="max-w-6xl mx-auto px-4 py-6">{children}</main>
+          <main className="max-w-2xl mx-auto pb-24 min-h-screen">
+            {children}
+          </main>
+          <BottomNav />
           <Toast />
         </RoleProvider>
+
+        {/* Service Worker registration */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js').catch(() => {});
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   )

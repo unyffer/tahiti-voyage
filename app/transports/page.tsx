@@ -3,10 +3,14 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useCallback } from 'react'
-import Modal from '@/components/Modal'
+import BottomSheet from '@/components/BottomSheet'
 import FormField from '@/components/FormField'
+import FAB from '@/components/FAB'
+import StatusBadge from '@/components/StatusBadge'
 import { ILES } from '@/lib/constants'
 import { apiFetch } from '@/lib/toast'
+import { useCanEdit } from '@/components/RoleContext'
+import { Pencil, Trash2 } from 'lucide-react'
 
 interface Transport {
   id: number; ile: string; nom: string; prix: number | null
@@ -17,17 +21,16 @@ const VIDE: Omit<Transport, 'id'> = {
   ile: 'Tahiti', nom: '', prix: null, commentaire: null, statut: 'a_faire', lien: null, gratuit: false
 }
 
-const TYPE_CONFIG: Record<string, { emoji: string; label: string; couleur: string }> = {
-  vol:     { emoji: '✈️', label: 'Vols',              couleur: 'bg-sky-600' },
-  ferry:   { emoji: '🚢', label: 'Ferries & bateaux', couleur: 'bg-blue-600' },
-  voiture: { emoji: '🚗', label: 'Voitures',          couleur: 'bg-amber-600' },
-  taxi:    { emoji: '🚕', label: 'Taxis',             couleur: 'bg-yellow-500' },
-  autre:   { emoji: '🚌', label: 'Autres',            couleur: 'bg-gray-600' },
+const TYPE_CONFIG: Record<string, { emoji: string; label: string; bg: string }> = {
+  vol:     { emoji: '✈️', label: 'Vols',              bg: 'bg-sky-600' },
+  ferry:   { emoji: '🚢', label: 'Ferries & bateaux', bg: 'bg-blue-600' },
+  voiture: { emoji: '🚗', label: 'Voitures',          bg: 'bg-amber-500' },
+  taxi:    { emoji: '🚕', label: 'Taxis',             bg: 'bg-yellow-500' },
+  autre:   { emoji: '🚌', label: 'Autres',            bg: 'bg-slate-500' },
 }
 
 function getType(nom: string): string {
   const n = nom.toLowerCase()
-  // Voiture en premier pour éviter que "Voiture Papeete Faaa" soit classé en vol
   if (n.includes('voiture') || n.includes('location') || n.includes('avis')) return 'voiture'
   if (n.includes('vol') || n.includes('pass inter') || n.includes('paris') || n.includes('papeete') || n.includes('avion')) return 'vol'
   if (n.includes('ferry') || n.includes('express') || n.includes('bateau')) return 'ferry'
@@ -40,20 +43,20 @@ function euros(n: number | null | undefined) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
 }
 
-const STATUT_STYLE: Record<string, string> = {
-  paye: 'bg-emerald-100 text-emerald-700',
-  reserve: 'bg-blue-100 text-blue-700',
-  a_faire: 'bg-orange-100 text-orange-700',
-}
-const STATUT_LABEL: Record<string, string> = {
-  paye: '✅ Payé', reserve: '📋 Réservé', a_faire: '⏳ À faire'
-}
+const VOLS_INTERNES = [
+  { vol: 'VT211', de: 'Moorea (MOZ)',    vers: 'Raiatea (RFP)', depart: '10:50', arrivee: '11:35', date: '14 sept.' },
+  { vol: 'VT730', de: 'Raiatea (RFP)',   vers: 'Maupiti (MAU)', depart: '13:30', arrivee: '13:55', date: '19 sept.' },
+  { vol: 'VT736', de: 'Maupiti (MAU)',   vers: 'Raiatea (RFP)', depart: '09:20', arrivee: '09:45', date: '22 sept.' },
+  { vol: 'VT420', de: 'Raiatea (RFP)',   vers: 'Bora Bora (BOB)', depart: '18:30', arrivee: '18:50', date: '22 sept.' },
+  { vol: 'VT462', de: 'Bora Bora (BOB)', vers: 'Tahiti (PPT)', depart: '08:00', arrivee: '08:50', date: '29 sept.' },
+]
 
 export default function TransportsPage() {
   const [transports, setTransports] = useState<Transport[]>([])
   const [chargement, setChargement] = useState(true)
   const [modal, setModal] = useState<Partial<Transport> | null>(null)
   const [sauvegarde, setSauvegarde] = useState(false)
+  const canEdit = useCanEdit()
 
   const charger = useCallback(async () => {
     const data = await fetch('/api/activites?categorie=transport').then(r => r.json())
@@ -64,8 +67,7 @@ export default function TransportsPage() {
   useEffect(() => { charger() }, [charger])
 
   async function sauvegarder(e: React.FormEvent) {
-    e.preventDefault()
-    setSauvegarde(true)
+    e.preventDefault(); setSauvegarde(true)
     const { ok } = await apiFetch('/api/activites', {
       method: modal?.id ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -81,21 +83,11 @@ export default function TransportsPage() {
     if (ok) setTransports(prev => prev.filter(t => t.id !== id))
   }
 
-  // Vols internes Air Tahiti — données fixes de la réservation
-  const VOLS_INTERNES = [
-    { vol: 'VT211', de: 'Moorea (MOZ Temae)', vers: 'Raiatea (RFP Uturoa)', depart: '10:50', arrivee: '11:35', date: '14 sept. 2026' },
-    { vol: 'VT730', de: 'Raiatea (RFP Uturoa)', vers: 'Maupiti (MAU)', depart: '13:30', arrivee: '13:55', date: '19 sept. 2026' },
-    { vol: 'VT736', de: 'Maupiti (MAU)', vers: 'Raiatea (RFP Uturoa)', depart: '09:20', arrivee: '09:45', date: '22 sept. 2026' },
-    { vol: 'VT420', de: 'Raiatea (RFP Uturoa)', vers: 'Bora Bora (BOB Motu Mute)', depart: '18:30', arrivee: '18:50', date: '22 sept. 2026' },
-    { vol: 'VT462', de: 'Bora Bora (BOB Motu Mute)', vers: 'Tahiti (PPT Faaa)', depart: '08:00', arrivee: '08:50', date: '29 sept. 2026' },
-  ]
-
-  if (chargement) return <div className="flex items-center justify-center h-48 text-gray-400">Chargement...</div>
+  if (chargement) return <div className="flex items-center justify-center h-48 text-slate-400">Chargement...</div>
 
   const total = transports.reduce((s, t) => s + (t.prix ?? 0), 0)
   const reste = transports.filter(t => t.statut !== 'paye').reduce((s, t) => s + (t.prix ?? 0), 0)
 
-  // Grouper par type — exclure les vols internes déjà dans le tableau fixe
   const groupes = ['vol', 'ferry', 'voiture', 'taxi', 'autre'].map(type => ({
     type,
     config: TYPE_CONFIG[type],
@@ -106,134 +98,121 @@ export default function TransportsPage() {
   })).filter(g => g.items.length > 0)
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">✈️ Transports</h1>
-          <p className="text-gray-500 mt-1">Vols, ferries, voitures et taxis</p>
-        </div>
-        <button
-          onClick={() => setModal({ ...VIDE })}
-          className="bg-teal-600 hover:bg-teal-700 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors"
-        >
-          + Ajouter un transport
-        </button>
+    <div className="pb-4">
+      <div className="px-5 pt-8 pb-4">
+        <h1 className="text-3xl font-black text-slate-900">Transports</h1>
+        <p className="text-slate-400 text-sm mt-0.5">Vols, ferries, voitures et taxis</p>
       </div>
 
       {/* Résumé */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <p className="text-sm text-gray-500">Total transports</p>
-          <p className="text-2xl font-bold text-gray-800">{euros(total)}</p>
+      <div className="grid grid-cols-2 gap-3 px-5 mb-5">
+        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+          <p className="text-xs text-slate-400">Total transports</p>
+          <p className="text-2xl font-black text-slate-900 mt-0.5">{euros(total)}</p>
         </div>
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-          <p className="text-sm text-gray-500">Reste à régler</p>
-          <p className="text-2xl font-bold text-orange-500">{euros(reste)}</p>
+        <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4">
+          <p className="text-xs text-orange-500">À régler</p>
+          <p className="text-2xl font-black text-orange-600 mt-0.5">{euros(reste)}</p>
         </div>
       </div>
 
       {/* Groupes par type */}
-      {groupes.map(({ type, config, items }) => (
-        <section key={type} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className={`${config.couleur} text-white px-5 py-3 flex items-center justify-between`}>
-            <h2 className="font-semibold text-lg">{config.emoji} {config.label}</h2>
-            <span className="text-white/70 text-sm">
-              {euros(items.reduce((s, t) => s + (t.prix ?? 0), 0))}
-            </span>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {items.map((t) => (
-              <div key={t.id} className="flex items-start justify-between gap-3 px-5 py-4 hover:bg-gray-50 group">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-gray-800">{t.nom}</span>
-                    {t.statut && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUT_STYLE[t.statut] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {STATUT_LABEL[t.statut] ?? t.statut}
-                      </span>
+      <div className="px-5 space-y-4">
+        {groupes.map(({ type, config, items }) => (
+          <section key={type} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+            <div className={`${config.bg} text-white px-4 py-3 flex items-center justify-between`}>
+              <span className="font-bold">{config.emoji} {config.label}</span>
+              <span className="text-white/70 text-sm">{euros(items.reduce((s, t) => s + (t.prix ?? 0), 0))}</span>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {items.map(t => (
+                <div key={t.id} className="flex items-start gap-3 px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-slate-900 text-sm">{t.nom}</span>
+                      {t.statut && <StatusBadge statut={t.statut} />}
+                    </div>
+                    {t.commentaire && <p className="text-xs text-slate-500 mt-0.5">{t.commentaire}</p>}
+                    {t.lien && (
+                      <a href={t.lien} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-sky-600 hover:underline">🔗 Lien</a>
                     )}
                   </div>
-                  {t.commentaire && (
-                    <p className="text-sm text-gray-500 mt-0.5">{t.commentaire}</p>
-                  )}
-                  {t.lien && (
-                    <a href={t.lien} target="_blank" rel="noopener noreferrer" className="text-xs text-teal-600 hover:underline">🔗 Lien</a>
-                  )}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {t.prix != null && <span className="font-bold text-slate-800">{euros(t.prix)}</span>}
+                    {canEdit && (
+                      <>
+                        <button onClick={() => setModal(t)} className="p-2 text-sky-600 hover:bg-sky-50 rounded-lg"><Pencil size={14} /></button>
+                        <button onClick={() => supprimer(t.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {t.prix != null && <span className="font-bold text-gray-800">{euros(t.prix)}</span>}
-                  <button onClick={() => setModal(t)} className="text-teal-600 hover:text-teal-700 p-1 opacity-0 group-hover:opacity-100 transition-opacity" title="Modifier">✏️</button>
-                  <button onClick={() => supprimer(t.id)} className="text-red-400 hover:text-red-600 p-1 opacity-0 group-hover:opacity-100 transition-opacity" title="Supprimer">🗑️</button>
-                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+
+        {/* Vols Air Tahiti — données fixes */}
+        <section className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+          <div className="bg-indigo-700 text-white px-4 py-3">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="font-bold">✈️ Vols Air Tahiti — Pass inter-îles</p>
+                <p className="text-indigo-200 text-xs mt-0.5">Haute saison · 585€/pers · ✅ Payé</p>
               </div>
-            ))}
+              <span className="font-bold text-white">1 755 €</span>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-left">
+                  {['Vol', 'De', 'Vers', 'Date', '↑', '↓'].map(h => (
+                    <th key={h} className="px-3 py-2.5 text-xs font-bold text-slate-500">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {VOLS_INTERNES.map(v => (
+                  <tr key={v.vol} className="hover:bg-indigo-50/50">
+                    <td className="px-3 py-2.5">
+                      <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded text-xs">{v.vol}</span>
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-600 text-xs max-w-[90px] truncate">{v.de}</td>
+                    <td className="px-3 py-2.5 text-slate-600 text-xs max-w-[90px] truncate">{v.vers}</td>
+                    <td className="px-3 py-2.5 text-slate-400 text-xs">{v.date}</td>
+                    <td className="px-3 py-2.5 font-semibold text-slate-800">{v.depart}</td>
+                    <td className="px-3 py-2.5 text-slate-500">{v.arrivee}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-2.5 bg-amber-50 border-t border-amber-100 text-xs text-amber-800">
+            ⚠️ Horaires à confirmer avant le départ — escale Raiatea entre Maupiti et Bora Bora
           </div>
         </section>
-      ))}
+      </div>
 
-      {/* Section vols internes Air Tahiti — données fixes */}
-      <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="bg-indigo-700 text-white px-5 py-3 flex items-center justify-between">
-          <div>
-            <h2 className="font-semibold text-lg">✈️ Vols internes Air Tahiti — Pass inter-îles</h2>
-            <p className="text-indigo-200 text-xs mt-0.5">Pass haute saison · 585 €/pers · Classe Y · ✅ Payé</p>
-          </div>
-          <span className="text-white/80 font-semibold">1 755 €</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Vol</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">De</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Vers</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Date</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Départ</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Arrivée</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {VOLS_INTERNES.map((v, i) => (
-                <tr key={i} className="hover:bg-indigo-50">
-                  <td className="px-4 py-3">
-                    <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded text-xs">{v.vol}</span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-700">{v.de}</td>
-                  <td className="px-4 py-3 text-gray-700">{v.vers}</td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{v.date}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">{v.depart}</td>
-                  <td className="px-4 py-3 text-gray-600">{v.arrivee}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="px-5 py-3 bg-amber-50 border-t border-amber-200 text-xs text-amber-800">
-          ⚠️ Attention : horaires mouvants — vérifier les horaires définitifs avant de partir. Escale Raiatea entre Maupiti et Bora Bora.
-        </div>
-      </section>
-
-      {transports.length === 0 && (
-        <div className="text-center py-12 text-gray-400">
-          <p className="text-4xl mb-2">✈️</p>
-          <p>Lance le SQL <code>seed-transports.sql</code> dans Supabase pour charger les données !</p>
-        </div>
-      )}
+      {/* FAB */}
+      {canEdit && <FAB onClick={() => setModal({ ...VIDE })} label="Ajouter" />}
 
       {/* Modal */}
       {modal && (
-        <Modal titre={modal.id ? 'Modifier le transport' : 'Ajouter un transport'} onClose={() => setModal(null)}>
-          <form onSubmit={sauvegarder} className="space-y-4">
-            <FormField label="Nom" name="nom" value={modal.nom} onChange={(v) => setModal(p => ({ ...p, nom: v }))}
+        <BottomSheet titre={modal.id ? 'Modifier le transport' : 'Ajouter un transport'} onClose={() => setModal(null)}>
+          <form onSubmit={sauvegarder} className="space-y-4 pt-2">
+            <FormField label="Nom" name="nom" value={modal.nom}
+              onChange={v => setModal(p => ({ ...p, nom: v }))}
               placeholder="ex: Ferry Tahiti → Moorea" required />
             <FormField label="Île concernée" name="ile" type="select" value={modal.ile}
-              onChange={(v) => setModal(p => ({ ...p, ile: v }))}
+              onChange={v => setModal(p => ({ ...p, ile: v }))}
               options={ILES.map(i => ({ value: i.nom, label: `${i.emoji} ${i.nom}` }))} />
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Prix (€)" name="prix" type="number" value={modal.prix ?? ''}
-                onChange={(v) => setModal(p => ({ ...p, prix: v ? Number(v) : null }))} />
+                onChange={v => setModal(p => ({ ...p, prix: v ? Number(v) : null }))} />
               <FormField label="Statut" name="statut" type="select" value={modal.statut ?? ''}
-                onChange={(v) => setModal(p => ({ ...p, statut: v || null }))}
+                onChange={v => setModal(p => ({ ...p, statut: v || null }))}
                 options={[
                   { value: 'a_faire', label: '⏳ À faire' },
                   { value: 'reserve', label: '📋 Réservé' },
@@ -241,18 +220,20 @@ export default function TransportsPage() {
                 ]} />
             </div>
             <FormField label="Commentaire" name="commentaire" type="textarea" value={modal.commentaire ?? ''}
-              onChange={(v) => setModal(p => ({ ...p, commentaire: v || null }))}
-              placeholder="Infos pratiques, horaires, remarques..." />
-            <FormField label="Lien (optionnel)" name="lien" type="url" value={modal.lien ?? ''}
-              onChange={(v) => setModal(p => ({ ...p, lien: v || null }))} />
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setModal(null)} className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-              <button type="submit" disabled={sauvegarde} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
-                {sauvegarde ? 'Sauvegarde...' : 'Sauvegarder'}
+              onChange={v => setModal(p => ({ ...p, commentaire: v || null }))}
+              placeholder="Infos pratiques, horaires..." />
+            <FormField label="Lien" name="lien" type="url" value={modal.lien ?? ''}
+              onChange={v => setModal(p => ({ ...p, lien: v || null }))} />
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => setModal(null)}
+                className="flex-1 py-3 border border-slate-200 rounded-xl text-slate-600 font-semibold">Annuler</button>
+              <button type="submit" disabled={sauvegarde}
+                className="flex-1 py-3 bg-sky-600 text-white rounded-xl hover:bg-sky-700 disabled:opacity-50 font-semibold">
+                {sauvegarde ? '...' : 'Sauvegarder'}
               </button>
             </div>
           </form>
-        </Modal>
+        </BottomSheet>
       )}
     </div>
   )

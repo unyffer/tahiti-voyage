@@ -3,11 +3,14 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useCallback } from 'react'
-import Modal from '@/components/Modal'
+import BottomSheet from '@/components/BottomSheet'
 import FormField from '@/components/FormField'
+import StatusBadge from '@/components/StatusBadge'
 import { ILES } from '@/lib/constants'
 import { isUrl } from '@/lib/utils'
 import { apiFetch } from '@/lib/toast'
+import { useCanEdit } from '@/components/RoleContext'
+import { Pencil, Trash2, Plus, ExternalLink } from 'lucide-react'
 
 interface Logement { id: number; ile: string; periode: string; lien_annonce: string | null; commentaires: string | null; questions: string | null }
 interface PaiementLog { id: number; description: string; regis: number | null; isa: number | null; agathe: number | null; total: number | null; date_echeance: string | null; reste_a_payer: number | null; lien_reservation: string | null }
@@ -23,11 +26,12 @@ function calcReste(p: Partial<PaiementLog>): number | null {
   return Math.max(0, p.total - paye)
 }
 
+const CHAMPS_FINANCIERS: (keyof PaiementLog)[] = ['total', 'regis', 'isa', 'agathe']
 const LOG_VIDE: Omit<Logement, 'id'> = { ile: 'Tahiti', periode: '', lien_annonce: null, commentaires: null, questions: null }
 const PAI_VIDE: Omit<PaiementLog, 'id'> = { description: '', regis: null, isa: null, agathe: null, total: null, date_echeance: null, reste_a_payer: null, lien_reservation: null }
 
-function getEmoji(ile: string) {
-  return ILES.find(i => ile?.toLowerCase().includes(i.nom.toLowerCase()))?.emoji ?? '🏠'
+function getIleDef(ile: string) {
+  return ILES.find(i => ile?.toLowerCase().includes(i.nom.toLowerCase()))
 }
 
 export default function LogementsPage() {
@@ -37,6 +41,7 @@ export default function LogementsPage() {
   const [modalLog, setModalLog] = useState<Partial<Logement> | null>(null)
   const [modalPai, setModalPai] = useState<Partial<PaiementLog> | null>(null)
   const [sauvegarde, setSauvegarde] = useState(false)
+  const canEdit = useCanEdit()
 
   const charger = useCallback(async () => {
     const [l, p] = await Promise.all([
@@ -60,12 +65,8 @@ export default function LogementsPage() {
   function updatePai(updates: Partial<PaiementLog>) {
     setModalPai(prev => {
       const next = { ...prev, ...updates }
-      const CHAMPS_FINANCIERS: (keyof PaiementLog)[] = ['total', 'regis', 'isa', 'agathe']
       const toucheFinancier = Object.keys(updates).some(k => CHAMPS_FINANCIERS.includes(k as keyof PaiementLog))
-      if (toucheFinancier) {
-        return { ...next, reste_a_payer: calcReste(next) }
-      }
-      return next
+      return toucheFinancier ? { ...next, reste_a_payer: calcReste(next) } : next
     })
   }
 
@@ -82,171 +83,198 @@ export default function LogementsPage() {
     const { ok } = await apiFetch(`/api/logements?id=${id}`, { method: 'DELETE' })
     if (ok) await charger()
   }
-
   async function supprimerPai(id: number) {
-    if (!confirm('Supprimer cette ligne ?')) return
+    if (!confirm('Supprimer ce paiement ?')) return
     const { ok } = await apiFetch(`/api/paiements-logements?id=${id}`, { method: 'DELETE' })
     if (ok) await charger()
   }
 
-  if (chargement) return <div className="flex items-center justify-center h-48 text-gray-400">Chargement...</div>
+  if (chargement) return <div className="flex items-center justify-center h-48 text-slate-400">Chargement...</div>
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">🏠 Logements</h1>
-        <p className="text-gray-500 mt-1">Hébergements et suivi des paiements</p>
+    <div>
+      <div className="px-5 pt-8 pb-4">
+        <h1 className="text-3xl font-black text-slate-900">Logements</h1>
+        <p className="text-slate-400 text-sm mt-0.5">Hébergements et paiements par île</p>
       </div>
 
-      {/* Vue consolidée des paiements — entièrement éditable */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="bg-teal-700 text-white px-5 py-3 flex items-center justify-between">
-          <h2 className="font-semibold text-lg">💰 Vue consolidée des paiements</h2>
-          <button onClick={() => setModalPai({ ...PAI_VIDE })} className="bg-white/20 hover:bg-white/30 text-white text-sm px-3 py-1 rounded-lg transition-colors">
-            + Ajouter
-          </button>
+      {/* ── Infos pratiques ── */}
+      <section className="px-5 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Infos pratiques</p>
+          {canEdit && (
+            <button onClick={() => setModalLog({ ...LOG_VIDE })}
+              className="text-xs text-sky-600 font-semibold flex items-center gap-1">
+              <Plus size={12} /> Ajouter
+            </button>
+          )}
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Logement</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">Régis</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">Isa</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">Agathe</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">Total</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Reste</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Échéance</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Lien</th>
-                <th className="px-3 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {paiements.map((p) => {
-                const log = logements.find(l => l.ile?.toLowerCase().includes(p.description?.split(' ')[0]?.toLowerCase() ?? ''))
-                return (
-                  <tr key={p.id} className="hover:bg-gray-50 group">
-                    <td className="px-4 py-3 font-medium text-gray-800">{p.description}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{p.regis ? euros(p.regis) : '–'}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{p.isa ? euros(p.isa) : '–'}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{p.agathe ? euros(p.agathe) : '–'}</td>
-                    <td className="px-4 py-3 text-right font-semibold">{euros(p.total)}</td>
-                    <td className="px-4 py-3">
-                      {!p.reste_a_payer || p.reste_a_payer <= 0
-                        ? <span className="text-emerald-600 font-semibold text-xs">✅ Soldé</span>
-                        : <span className="text-orange-600 font-semibold">{euros(p.reste_a_payer)}</span>}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{p.date_echeance ?? '–'}</td>
-                    <td className="px-4 py-3">
-                      {(isUrl(p.lien_reservation) || isUrl(log?.lien_annonce)) && (
-                        <a href={p.lien_reservation ?? log?.lien_annonce ?? ''} target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:text-teal-700 font-medium text-xs">🔗</a>
-                      )}
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => setModalPai(p)} className="text-teal-600 hover:text-teal-700 p-1" title="Modifier">✏️</button>
-                        <button onClick={() => supprimerPai(p.id)} className="text-red-400 hover:text-red-600 p-1" title="Supprimer">🗑️</button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-              <tr className="bg-gray-50 font-semibold text-sm">
-                <td className="px-4 py-3 text-gray-700">Total</td>
-                <td className="px-4 py-3 text-right">{euros(paiements.reduce((s, p) => s + (p.regis ?? 0), 0))}</td>
-                <td className="px-4 py-3 text-right">{euros(paiements.reduce((s, p) => s + (p.isa ?? 0), 0))}</td>
-                <td className="px-4 py-3 text-right">{euros(paiements.reduce((s, p) => s + (p.agathe ?? 0), 0))}</td>
-                <td className="px-4 py-3 text-right">{euros(paiements.reduce((s, p) => s + (p.total ?? 0), 0))}</td>
-                <td className="px-4 py-3 text-orange-600">{euros(paiements.reduce((s, p) => s + (p.reste_a_payer ?? 0), 0))} restant</td>
-                <td colSpan={3}></td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="space-y-3">
+          {logements.length === 0 && (
+            <div className="text-center py-8 text-slate-400">Aucun logement saisi</div>
+          )}
+          {logements.map(l => {
+            const ileDef = getIleDef(l.ile)
+            return (
+              <div key={l.id} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                <div className={`${ileDef?.couleur ?? 'bg-sky-500'} px-4 py-3 flex items-center justify-between`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{ileDef?.emoji ?? '🏠'}</span>
+                    <div>
+                      <p className="font-bold text-white">{l.ile}</p>
+                      {l.periode && <p className="text-white/70 text-xs">{l.periode}</p>}
+                    </div>
+                  </div>
+                  {canEdit && (
+                    <div className="flex gap-1">
+                      <button onClick={() => setModalLog({ ...l })} className="p-2 text-white/80 hover:text-white rounded-lg">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={() => supprimerLog(l.id)} className="p-2 text-white/80 hover:text-white rounded-lg">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="px-4 py-3 space-y-2">
+                  {isUrl(l.lien_annonce) && (
+                    <a href={l.lien_annonce!} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-sm text-sky-600 font-semibold">
+                      <ExternalLink size={14} /> Voir l&apos;annonce
+                    </a>
+                  )}
+                  {l.commentaires && (
+                    <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 text-sm text-sky-800">
+                      💬 {l.commentaires}
+                    </div>
+                  )}
+                  {l.questions && (
+                    <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-sm text-amber-800">
+                      ❓ {l.questions}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
-      </div>
+      </section>
 
-      {/* Cards logements avec infos pratiques */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-800">🗂️ Infos pratiques par hébergement</h2>
-        <button onClick={() => setModalLog({ ...LOG_VIDE })} className="bg-teal-600 hover:bg-teal-700 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors">
-          + Ajouter
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {logements.map((l) => (
-          <div key={l.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h3 className="font-semibold text-gray-800">{getEmoji(l.ile)} {l.ile}</h3>
-                <p className="text-sm text-gray-500">{l.periode}</p>
+      {/* ── Paiements ── */}
+      <section className="px-5 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Paiements</p>
+          {canEdit && (
+            <button onClick={() => setModalPai({ ...PAI_VIDE })}
+              className="text-xs text-sky-600 font-semibold flex items-center gap-1">
+              <Plus size={12} /> Ajouter
+            </button>
+          )}
+        </div>
+        <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm divide-y divide-slate-100">
+          {paiements.length === 0 && (
+            <div className="text-center py-8 text-slate-400">Aucun paiement saisi</div>
+          )}
+          {paiements.map(p => {
+            const estRegle = !p.reste_a_payer || p.reste_a_payer <= 0
+            return (
+              <div key={p.id} className="px-4 py-3 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-slate-900 truncate text-sm">{p.description}</p>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    {estRegle
+                      ? <StatusBadge statut="solde" />
+                      : <span className="text-sm font-bold text-orange-600">{euros(p.reste_a_payer)}</span>}
+                    {p.date_echeance && !estRegle && (
+                      <span className="text-xs text-slate-400">⏰ {p.date_echeance}</span>
+                    )}
+                  </div>
+                  {/* Détail par personne */}
+                  <div className="flex gap-3 mt-1 text-xs text-slate-400">
+                    {[{ n: 'R', v: p.regis }, { n: 'I', v: p.isa }, { n: 'A', v: p.agathe }].map(({ n, v }) => v != null && v > 0 ? (
+                      <span key={n}>{n}: {euros(v)}</span>
+                    ) : null)}
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="font-bold text-slate-800">{euros(p.total)}</p>
+                  {canEdit && (
+                    <div className="flex gap-1 mt-1 justify-end">
+                      <button onClick={() => setModalPai({ ...p })} className="p-1.5 text-sky-600 hover:bg-sky-50 rounded-lg"><Pencil size={14} /></button>
+                      <button onClick={() => supprimerPai(p.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-1">
-                <button onClick={() => setModalLog(l)} className="text-teal-600 hover:text-teal-700 p-1" title="Modifier">✏️</button>
-                <button onClick={() => supprimerLog(l.id)} className="text-red-400 hover:text-red-600 p-1" title="Supprimer">🗑️</button>
-              </div>
-            </div>
-            {isUrl(l.lien_annonce) && (
-              <a href={l.lien_annonce!} target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:text-teal-700 text-sm font-medium block mb-2">
-                🔗 Voir l&apos;annonce
-              </a>
-            )}
-            {l.commentaires && <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800 mb-2">💬 {l.commentaires}</div>}
-            {l.questions && <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">❓ {l.questions}</div>}
-            {!l.commentaires && !l.questions && !l.lien_annonce && (
-              <p className="text-sm text-gray-400 italic">Aucune info — clique ✏️ pour en ajouter</p>
-            )}
-          </div>
-        ))}
-      </div>
+            )
+          })}
+        </div>
+      </section>
 
-      {/* Modal logement (infos pratiques) */}
+      {/* ── MODAL logement ── */}
       {modalLog && (
-        <Modal titre={modalLog.id ? 'Modifier les infos pratiques' : 'Ajouter un logement'} onClose={() => setModalLog(null)}>
-          <form onSubmit={sauvegarderLog} className="space-y-4">
-            <FormField label="Île" name="ile" type="select" value={modalLog.ile} onChange={(v) => setModalLog(p => ({ ...p, ile: v }))}
-              options={ILES.map(i => ({ value: i.nom, label: `${i.emoji} ${i.nom}` }))} required />
-            <FormField label="Période" name="periode" value={modalLog.periode} onChange={(v) => setModalLog(p => ({ ...p, periode: v }))} placeholder="ex: 07/09 - 14/09" required />
-            <FormField label="Lien annonce (Airbnb/Booking...)" name="lien_annonce" type="url" value={modalLog.lien_annonce ?? ''} onChange={(v) => setModalLog(p => ({ ...p, lien_annonce: v || null }))} />
-            <FormField label="💬 Commentaires" name="commentaires" type="textarea" value={modalLog.commentaires ?? ''} onChange={(v) => setModalLog(p => ({ ...p, commentaires: v || null }))} placeholder="Infos pratiques (voiture, kayak, petit-déj...)..." />
-            <FormField label="❓ Questions ouvertes" name="questions" type="textarea" value={modalLog.questions ?? ''} onChange={(v) => setModalLog(p => ({ ...p, questions: v || null }))} placeholder="Ce qu'on doit encore clarifier..." />
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setModalLog(null)} className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-              <button type="submit" disabled={sauvegarde} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">{sauvegarde ? 'Sauvegarde...' : 'Sauvegarder'}</button>
+        <BottomSheet titre={modalLog.id ? 'Modifier le logement' : 'Ajouter un logement'} onClose={() => setModalLog(null)}>
+          <form onSubmit={sauvegarderLog} className="space-y-4 pt-2">
+            <FormField label="Île" name="ile" type="select" value={modalLog.ile}
+              onChange={v => setModalLog(p => ({ ...p, ile: v }))}
+              options={ILES.map(i => ({ value: i.nom, label: `${i.emoji} ${i.nom}` }))} />
+            <FormField label="Période" name="periode" value={modalLog.periode}
+              onChange={v => setModalLog(p => ({ ...p, periode: v }))}
+              placeholder="ex: 7-14 sept." />
+            <FormField label="Lien annonce" name="lien_annonce" type="url" value={modalLog.lien_annonce ?? ''}
+              onChange={v => setModalLog(p => ({ ...p, lien_annonce: v || null }))} />
+            <FormField label="Commentaires" name="commentaires" type="textarea" value={modalLog.commentaires ?? ''}
+              onChange={v => setModalLog(p => ({ ...p, commentaires: v || null }))} />
+            <FormField label="Questions" name="questions" type="textarea" value={modalLog.questions ?? ''}
+              onChange={v => setModalLog(p => ({ ...p, questions: v || null }))} />
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => setModalLog(null)}
+                className="flex-1 py-3 border border-slate-200 rounded-xl text-slate-600 font-semibold">Annuler</button>
+              <button type="submit" disabled={sauvegarde}
+                className="flex-1 py-3 bg-sky-600 text-white rounded-xl hover:bg-sky-700 disabled:opacity-50 font-semibold">
+                {sauvegarde ? '...' : 'Sauvegarder'}
+              </button>
             </div>
           </form>
-        </Modal>
+        </BottomSheet>
       )}
 
-      {/* Modal paiement */}
+      {/* ── MODAL paiement ── */}
       {modalPai && (
-        <Modal titre={modalPai.id ? 'Modifier le paiement' : 'Ajouter un paiement logement'} onClose={() => setModalPai(null)}>
-          <form onSubmit={sauvegarderPai} className="space-y-4">
-            <FormField label="Description" name="description" value={modalPai.description} onChange={(v) => updatePai({ description: v })} required />
-            <FormField label="Prix total du logement (€)" name="total" type="number" value={modalPai.total ?? ''} onChange={(v) => updatePai({ total: v ? Number(v) : null })} placeholder="Prix affiché sur l'annonce" />
-            <p className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2">
-              Renseigne ce que chaque personne a déjà versé. Le reste est calculé automatiquement.
-            </p>
-            <div className="grid grid-cols-3 gap-3">
-              <FormField label="Régis payé (€)" name="regis" type="number" value={modalPai.regis ?? ''} onChange={(v) => updatePai({ regis: v ? Number(v) : null })} />
-              <FormField label="Isa payé (€)" name="isa" type="number" value={modalPai.isa ?? ''} onChange={(v) => updatePai({ isa: v ? Number(v) : null })} />
-              <FormField label="Agathe payé (€)" name="agathe" type="number" value={modalPai.agathe ?? ''} onChange={(v) => updatePai({ agathe: v ? Number(v) : null })} />
+        <BottomSheet titre={modalPai.id ? 'Modifier le paiement' : 'Ajouter un paiement'} onClose={() => setModalPai(null)}>
+          <form onSubmit={sauvegarderPai} className="space-y-4 pt-2">
+            <FormField label="Description" name="description" value={modalPai.description}
+              onChange={v => updatePai({ description: v })} required />
+            <FormField label="Prix total (€)" name="total" type="number" value={modalPai.total ?? ''}
+              onChange={v => updatePai({ total: v ? Number(v) : null })} />
+            <div className="grid grid-cols-3 gap-2">
+              <FormField label="Régis (€)" name="regis" type="number" value={modalPai.regis ?? ''}
+                onChange={v => updatePai({ regis: v ? Number(v) : null })} />
+              <FormField label="Isa (€)" name="isa" type="number" value={modalPai.isa ?? ''}
+                onChange={v => updatePai({ isa: v ? Number(v) : null })} />
+              <FormField label="Agathe (€)" name="agathe" type="number" value={modalPai.agathe ?? ''}
+                onChange={v => updatePai({ agathe: v ? Number(v) : null })} />
             </div>
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-center justify-between">
-              <span className="text-sm text-gray-600">Reste à payer (calculé)</span>
-              <span className={`font-bold text-lg ${(calcReste(modalPai) ?? 0) > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
-                {calcReste(modalPai) === null ? '–' : euros(calcReste(modalPai))}
-                {(calcReste(modalPai) ?? 0) <= 0 && calcReste(modalPai) !== null && ' ✅'}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-between items-center">
+              <span className="text-sm text-slate-600">Reste calculé</span>
+              <span className={`font-black text-lg ${(calcReste(modalPai) ?? 0) > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                {calcReste(modalPai) === null ? '–' : `${euros(calcReste(modalPai))}${(calcReste(modalPai) ?? 0) <= 0 ? ' ✅' : ''}`}
               </span>
             </div>
-            <FormField label="Date échéance" name="date_echeance" value={modalPai.date_echeance ?? ''} onChange={(v) => updatePai({ date_echeance: v || null })} placeholder="ex: 31/8/2026" />
-            <FormField label="Lien réservation" name="lien_reservation" type="url" value={modalPai.lien_reservation ?? ''} onChange={(v) => updatePai({ lien_reservation: v || null })} />
-            <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => setModalPai(null)} className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-              <button type="submit" disabled={sauvegarde} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">{sauvegarde ? 'Sauvegarde...' : 'Sauvegarder'}</button>
+            <FormField label="Date échéance" name="date_echeance" value={modalPai.date_echeance ?? ''}
+              onChange={v => updatePai({ date_echeance: v || null })} />
+            <FormField label="Lien réservation" name="lien_reservation" type="url" value={modalPai.lien_reservation ?? ''}
+              onChange={v => updatePai({ lien_reservation: v || null })} />
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => setModalPai(null)}
+                className="flex-1 py-3 border border-slate-200 rounded-xl text-slate-600 font-semibold">Annuler</button>
+              <button type="submit" disabled={sauvegarde}
+                className="flex-1 py-3 bg-sky-600 text-white rounded-xl hover:bg-sky-700 disabled:opacity-50 font-semibold">
+                {sauvegarde ? '...' : 'Sauvegarder'}
+              </button>
             </div>
           </form>
-        </Modal>
+        </BottomSheet>
       )}
     </div>
   )

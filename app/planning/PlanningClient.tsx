@@ -5,26 +5,19 @@ import { ILES } from '@/lib/constants'
 import Link from 'next/link'
 
 interface PlanningRow {
-  id: number
-  lieu: string
-  nuits: number | null
-  date_debut: string
-  date_fin: string
-  type: string
-  notes: string | null
-  sort_order: number | null
+  id: number; lieu: string; nuits: number | null; date_debut: string; date_fin: string
+  type: string; notes: string | null; sort_order: number | null
 }
 
-// Hex values matching the Tailwind couleur classes defined in lib/constants.ts
 const ILE_HEX: Record<string, string> = {
-  'tahiti':     '#10b981', // emerald-500
-  'moorea':     '#14b8a6', // teal-500
-  "taha'a":     '#ec4899', // pink-500
-  'taha':       '#ec4899',
-  'raiatea':    '#ec4899',
-  'maupiti':    '#3b82f6', // blue-500
-  'bora bora':  '#06b6d4', // cyan-500
-  'bora-bora':  '#06b6d4',
+  'tahiti':    '#10b981',
+  'moorea':    '#14b8a6',
+  "taha'a":    '#ec4899',
+  'taha':      '#ec4899',
+  'raiatea':   '#ec4899',
+  'maupiti':   '#3b82f6',
+  'bora bora': '#06b6d4',
+  'bora-bora': '#06b6d4',
 }
 
 const ILE_EMOJIS: Record<string, string> = {
@@ -39,16 +32,12 @@ const ILE_EMOJIS: Record<string, string> = {
 }
 
 function formatDate(d: string) {
-  try {
-    return new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-  } catch { return d }
+  try { return new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) }
+  catch { return d }
 }
 
-function getSlug(lieu: string) {
-  return lieu.toLowerCase().replace(/ /g, '-')
-}
+function getSlug(lieu: string) { return lieu.toLowerCase().replace(/ /g, '-') }
 
-// Partial match: "Taha'a & Raiatea" → finds 'taha'a' key
 function getHex(lieu: string): string | null {
   const lower = lieu.toLowerCase()
   if (ILE_HEX[lower]) return ILE_HEX[lower]
@@ -67,7 +56,6 @@ function getEmoji(lieu: string): string {
   return '📍'
 }
 
-// Local-time ISO date string (avoids UTC offset issues)
 function toDateStr(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -75,57 +63,35 @@ function toDateStr(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-// For séjours: color from date_debut (inclusive) to date_fin (exclusive — it's checkout day).
-// For aller/retour flights: exact day match on date_debut.
 function getEtapeForDay(dateStr: string, planning: PlanningRow[]): PlanningRow | null {
-  const sejour = planning.find(
-    e => e.type === 'sejour' && e.date_debut <= dateStr && dateStr < e.date_fin
-  )
+  const sejour = planning.find(e => e.type === 'sejour' && e.date_debut <= dateStr && dateStr < e.date_fin)
   if (sejour) return sejour
   return planning.find(e => e.type !== 'sejour' && e.date_debut === dateStr) ?? null
 }
 
-interface CalendarDay {
-  date: Date
-  dateStr: string
-  inTrip: boolean
-  etape: PlanningRow | null
-}
+interface CalendarDay { date: Date; dateStr: string; inTrip: boolean; etape: PlanningRow | null }
 
 function buildCalendarWeeks(planning: PlanningRow[]): CalendarDay[][] {
-  // Local-time dates to avoid DST/UTC shifting
-  const tripStart = new Date(2026, 8, 4)  // Sept 4
-  const tripEnd   = new Date(2026, 9, 2)  // Oct 2
-
-  // Monday of the week containing tripStart (Sept 4, 2026 = Friday → back to Aug 31)
+  const tripStart = new Date(2026, 8, 4)
+  const tripEnd   = new Date(2026, 9, 2)
   const calStart = new Date(tripStart)
-  const dow = calStart.getDay() // 0=Sun
+  const dow = calStart.getDay()
   calStart.setDate(calStart.getDate() - (dow === 0 ? 6 : dow - 1))
-
-  // Sunday of the week containing tripEnd
   const calEnd = new Date(tripEnd)
   const dowEnd = calEnd.getDay()
   calEnd.setDate(calEnd.getDate() + (dowEnd === 0 ? 0 : 7 - dowEnd))
-
   const weeks: CalendarDay[][] = []
   const cur = new Date(calStart)
-
   while (cur <= calEnd) {
     const week: CalendarDay[] = []
     for (let i = 0; i < 7; i++) {
       const dateStr = toDateStr(cur)
       const inTrip = cur >= tripStart && cur <= tripEnd
-      week.push({
-        date: new Date(cur),
-        dateStr,
-        inTrip,
-        etape: inTrip ? getEtapeForDay(dateStr, planning) : null,
-      })
+      week.push({ date: new Date(cur), dateStr, inTrip, etape: inTrip ? getEtapeForDay(dateStr, planning) : null })
       cur.setDate(cur.getDate() + 1)
     }
     weeks.push(week)
   }
-
   return weeks
 }
 
@@ -135,127 +101,107 @@ export default function PlanningClient({ planning }: { planning: PlanningRow[] }
   const todayStr = toDateStr(new Date())
 
   return (
-    <div className="space-y-6">
-
-      {/* Header + toggle */}
-      <div className="flex items-start justify-between flex-wrap gap-4">
+    <div>
+      <div className="px-5 pt-8 pb-4 flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">📅 Planning détaillé</h1>
-          <p className="text-gray-500 mt-1">4 septembre → 2 octobre 2026 · 28 nuits</p>
+          <h1 className="text-3xl font-black text-slate-900">Planning</h1>
+          <p className="text-slate-400 text-sm mt-0.5">4 sept → 2 oct · 28 nuits</p>
         </div>
-        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm font-medium">
-          <button
-            onClick={() => setVue('timeline')}
-            className={`px-4 py-2 transition-colors ${
-              vue === 'timeline'
-                ? 'bg-teal-600 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            📋 Timeline
-          </button>
-          <button
-            onClick={() => setVue('calendrier')}
-            className={`px-4 py-2 transition-colors border-l border-gray-200 ${
-              vue === 'calendrier'
-                ? 'bg-teal-600 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            🗓️ Calendrier
-          </button>
+        {/* Toggle */}
+        <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+          {[{ id: 'timeline', label: '📋' }, { id: 'calendrier', label: '📅' }].map(({ id, label }) => (
+            <button key={id}
+              onClick={() => setVue(id as 'timeline' | 'calendrier')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                vue === id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* ─── TIMELINE VIEW ─── */}
+      {/* ── TIMELINE ── */}
       {vue === 'timeline' && (
-        <div className="relative">
-          <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-teal-200" />
-          <div className="space-y-4">
-            {planning.map((etape) => {
-              const isVoyage = etape.type !== 'sejour'
-              const lienIle = !isVoyage ? `/iles/${getSlug(etape.lieu)}` : null
-              const hex = !isVoyage ? null : getHex(etape.lieu)
+        <div className="px-5 pb-4">
+          <div className="relative">
+            <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-slate-100" />
+            <div className="space-y-3">
+              {planning.map((etape) => {
+                const isVol = etape.type !== 'sejour'
+                const hex = getHex(etape.lieu)
+                const slug = !isVol ? getSlug(etape.lieu) : null
 
-              return (
-                <div key={etape.id} className="relative flex gap-4">
-                  <div
-                    className={`relative z-10 flex-shrink-0 w-16 h-16 rounded-full flex items-center justify-center text-2xl shadow-sm border-2 bg-white`}
-                    style={{
-                      borderColor: isVoyage ? '#d1d5db' : (hex ?? '#5eead4'),
-                      backgroundColor: isVoyage ? '#f9fafb' : '#ffffff',
-                    }}
-                  >
-                    {isVoyage ? '✈️' : getEmoji(etape.lieu)}
-                  </div>
-
-                  <div
-                    className={`flex-1 rounded-xl p-4 shadow-sm border ${
-                      isVoyage ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-100'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2 flex-wrap">
-                      <div>
-                        {lienIle ? (
-                          <Link href={lienIle} className="text-lg font-bold hover:opacity-80 transition-opacity"
-                            style={{ color: hex ?? '#0f766e' }}>
-                            {etape.lieu}
-                          </Link>
-                        ) : (
-                          <h3 className="text-lg font-bold text-gray-600">{etape.lieu}</h3>
-                        )}
-                        <p className="text-sm text-gray-500">
-                          {formatDate(etape.date_debut)} → {formatDate(etape.date_fin)}
-                          {etape.nuits ? ` · ${etape.nuits} nuit${etape.nuits > 1 ? 's' : ''}` : ''}
-                        </p>
-                      </div>
-                      {etape.nuits && (
-                        <span
-                          className="text-white text-xs font-semibold px-2 py-1 rounded-full"
-                          style={{ backgroundColor: hex ?? '#6b7280' }}
-                        >
-                          {etape.nuits} nuits
-                        </span>
-                      )}
+                return (
+                  <div key={etape.id} className="relative flex gap-4 pl-4">
+                    {/* Dot */}
+                    <div
+                      className="relative z-10 flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg border-2 bg-white shadow-sm"
+                      style={{ borderColor: isVol ? '#e2e8f0' : (hex ?? '#0ea5e9') }}
+                    >
+                      {isVol ? '✈️' : getEmoji(etape.lieu)}
                     </div>
 
-                    {etape.notes && (
-                      <p className="text-sm text-gray-600 mt-2 bg-gray-50 rounded-lg p-2">{etape.notes}</p>
-                    )}
-                    {lienIle && (
-                      <Link
-                        href={lienIle}
-                        className="text-sm font-medium mt-2 inline-block hover:opacity-80 transition-opacity"
-                        style={{ color: hex ?? '#0f766e' }}
-                      >
-                        Voir la page {etape.lieu} →
-                      </Link>
-                    )}
+                    {/* Card */}
+                    <div className="flex-1 bg-white border border-slate-100 rounded-2xl p-4 shadow-sm mb-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          {slug ? (
+                            <Link href={`/iles/${slug}`}
+                              className="font-bold text-base hover:opacity-80 transition-opacity"
+                              style={{ color: hex ?? '#0f172a' }}>
+                              {etape.lieu}
+                            </Link>
+                          ) : (
+                            <p className="font-bold text-base text-slate-500">{etape.lieu}</p>
+                          )}
+                          <p className="text-sm text-slate-400 mt-0.5">
+                            {formatDate(etape.date_debut)} → {formatDate(etape.date_fin)}
+                            {etape.nuits ? ` · ${etape.nuits}n` : ''}
+                          </p>
+                        </div>
+                        {etape.nuits && hex && (
+                          <span className="flex-shrink-0 text-white text-xs font-bold px-2.5 py-1 rounded-full"
+                            style={{ backgroundColor: hex }}>
+                            {etape.nuits}n
+                          </span>
+                        )}
+                      </div>
+
+                      {etape.notes && (
+                        <p className="text-sm text-slate-500 mt-2 bg-slate-50 rounded-xl p-2.5">{etape.notes}</p>
+                      )}
+                      {slug && (
+                        <Link href={`/iles/${slug}`}
+                          className="text-xs font-semibold mt-2 inline-block hover:opacity-70 transition-opacity"
+                          style={{ color: hex ?? '#0f172a' }}>
+                          Voir {etape.lieu} →
+                        </Link>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
         </div>
       )}
 
-      {/* ─── CALENDAR VIEW ─── */}
+      {/* ── CALENDRIER ── */}
       {vue === 'calendrier' && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-
-            {/* Day-of-week headers */}
-            <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50">
-              {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(j => (
-                <div key={j} className="text-center py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  {j}
-                </div>
+        <div className="px-5 pb-4 space-y-4">
+          <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+            {/* Jours de la semaine */}
+            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+              {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((j, i) => (
+                <div key={i} className="text-center py-2 text-xs font-bold text-slate-400 uppercase">{j}</div>
               ))}
             </div>
 
-            {/* Weeks */}
+            {/* Semaines */}
             {weeks.map((week, wi) => (
-              <div key={wi} className="grid grid-cols-7 border-b border-gray-100 last:border-0">
+              <div key={wi} className="grid grid-cols-7 border-b border-slate-100 last:border-0">
                 {week.map(({ date, dateStr, inTrip, etape }) => {
                   const isVol = etape?.type !== 'sejour'
                   const hex = etape && !isVol ? getHex(etape.lieu) : null
@@ -263,44 +209,30 @@ export default function PlanningClient({ planning }: { planning: PlanningRow[] }
                   const slug = etape && !isVol ? getSlug(etape.lieu) : null
 
                   return (
-                    <div
-                      key={dateStr}
-                      className={`relative min-h-[76px] p-1.5 border-r border-gray-100 last:border-0 flex flex-col ${
-                        !inTrip ? 'bg-gray-50/60' : ''
+                    <div key={dateStr}
+                      className={`relative min-h-[68px] p-1 border-r border-slate-100 last:border-0 flex flex-col ${
+                        !inTrip ? 'bg-slate-50/50' : ''
                       }`}
-                      style={hex ? { backgroundColor: `${hex}18` } : undefined}
+                      style={hex ? { backgroundColor: `${hex}15` } : undefined}
                     >
-                      {/* Day number */}
-                      <span
-                        className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full mb-0.5 ${
-                          isToday
-                            ? 'bg-teal-600 text-white'
-                            : inTrip
-                            ? 'text-gray-700'
-                            : 'text-gray-300'
-                        }`}
-                      >
+                      <span className={`text-[11px] font-bold w-5 h-5 flex items-center justify-center rounded-full mb-0.5 ${
+                        isToday ? 'bg-sky-600 text-white' : inTrip ? 'text-slate-700' : 'text-slate-300'
+                      }`}>
                         {date.getDate()}
                       </span>
-
-                      {/* Month label on the 1st */}
                       {date.getDate() === 1 && (
-                        <span className="text-[9px] font-medium text-gray-400 uppercase tracking-wide -mt-0.5 mb-0.5">
+                        <span className="text-[8px] font-bold text-slate-400 uppercase -mt-0.5 mb-0.5">
                           {date.toLocaleDateString('fr-FR', { month: 'short' })}
                         </span>
                       )}
-
-                      {/* Content */}
                       {etape && (
                         <div className="flex-1 flex flex-col">
                           {isVol ? (
-                            <span className="text-sm leading-none mt-0.5">✈️</span>
+                            <span className="text-xs">✈️</span>
                           ) : hex && slug ? (
-                            <Link
-                              href={`/iles/${slug}`}
-                              className="text-[10px] font-semibold leading-tight truncate rounded px-1 py-0.5 text-white hover:opacity-90 transition-opacity"
-                              style={{ backgroundColor: hex }}
-                            >
+                            <Link href={`/iles/${slug}`}
+                              className="text-[9px] font-bold leading-tight truncate rounded-lg px-1 py-0.5 text-white hover:opacity-90"
+                              style={{ backgroundColor: hex }}>
                               {getEmoji(etape.lieu)} {etape.lieu}
                             </Link>
                           ) : null}
@@ -313,28 +245,28 @@ export default function PlanningClient({ planning }: { planning: PlanningRow[] }
             ))}
           </div>
 
-          {/* Legend */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Légende</p>
-            <div className="flex flex-wrap gap-x-6 gap-y-2.5">
+          {/* Légende */}
+          <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Légende</p>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
               {ILES.map(ile => {
                 const hex = getHex(ile.nom) ?? '#9ca3af'
                 return (
-                  <div key={ile.slug} className="flex items-center gap-2">
-                    <span className="w-3.5 h-3.5 rounded flex-shrink-0" style={{ backgroundColor: hex }} />
-                    <span className="text-sm text-gray-700">{ile.emoji} {ile.nom}</span>
-                  </div>
+                  <Link key={ile.slug} href={`/iles/${ile.slug}`}
+                    className="flex items-center gap-1.5 hover:opacity-80">
+                    <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: hex }} />
+                    <span className="text-xs text-slate-600">{ile.emoji} {ile.nom}</span>
+                  </Link>
                 )
               })}
-              <div className="flex items-center gap-2">
-                <span className="w-3.5 h-3.5 rounded flex-shrink-0 bg-gray-300" />
-                <span className="text-sm text-gray-700">✈️ Vol</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-sm flex-shrink-0 bg-slate-300" />
+                <span className="text-xs text-slate-600">✈️ Vol</span>
               </div>
             </div>
           </div>
         </div>
       )}
-
     </div>
   )
 }
