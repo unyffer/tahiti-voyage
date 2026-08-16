@@ -17,6 +17,12 @@ function euros(n: number | null | undefined) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
 }
 
+function calcReste(p: Partial<PaiementLog>): number | null {
+  if (p.total == null) return null
+  const paye = (p.regis ?? 0) + (p.isa ?? 0) + (p.agathe ?? 0)
+  return Math.max(0, p.total - paye)
+}
+
 const LOG_VIDE: Omit<Logement, 'id'> = { ile: 'Tahiti', periode: '', lien_annonce: null, commentaires: null, questions: null }
 const PAI_VIDE: Omit<PaiementLog, 'id'> = { description: '', regis: null, isa: null, agathe: null, total: null, date_echeance: null, reste_a_payer: null, lien_reservation: null }
 
@@ -51,9 +57,22 @@ export default function LogementsPage() {
     setSauvegarde(false)
   }
 
+  function updatePai(updates: Partial<PaiementLog>) {
+    setModalPai(prev => {
+      const next = { ...prev, ...updates }
+      const CHAMPS_FINANCIERS: (keyof PaiementLog)[] = ['total', 'regis', 'isa', 'agathe']
+      const toucheFinancier = Object.keys(updates).some(k => CHAMPS_FINANCIERS.includes(k as keyof PaiementLog))
+      if (toucheFinancier) {
+        return { ...next, reste_a_payer: calcReste(next) }
+      }
+      return next
+    })
+  }
+
   async function sauvegarderPai(e: React.FormEvent) {
     e.preventDefault(); setSauvegarde(true)
-    const { ok } = await apiFetch('/api/paiements-logements', { method: modalPai?.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(modalPai) })
+    const payload = { ...modalPai, reste_a_payer: calcReste(modalPai ?? {}) }
+    const { ok } = await apiFetch('/api/paiements-logements', { method: modalPai?.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     if (ok) { setModalPai(null); await charger() }
     setSauvegarde(false)
   }
@@ -203,18 +222,25 @@ export default function LogementsPage() {
       {modalPai && (
         <Modal titre={modalPai.id ? 'Modifier le paiement' : 'Ajouter un paiement logement'} onClose={() => setModalPai(null)}>
           <form onSubmit={sauvegarderPai} className="space-y-4">
-            <FormField label="Description" name="description" value={modalPai.description} onChange={(v) => setModalPai(p => ({ ...p, description: v }))} required />
+            <FormField label="Description" name="description" value={modalPai.description} onChange={(v) => updatePai({ description: v })} required />
+            <FormField label="Prix total du logement (€)" name="total" type="number" value={modalPai.total ?? ''} onChange={(v) => updatePai({ total: v ? Number(v) : null })} placeholder="Prix affiché sur l'annonce" />
+            <p className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2">
+              Renseigne ce que chaque personne a déjà versé. Le reste est calculé automatiquement.
+            </p>
             <div className="grid grid-cols-3 gap-3">
-              <FormField label="Régis (€)" name="regis" type="number" value={modalPai.regis ?? ''} onChange={(v) => setModalPai(p => ({ ...p, regis: v ? Number(v) : null }))} />
-              <FormField label="Isa (€)" name="isa" type="number" value={modalPai.isa ?? ''} onChange={(v) => setModalPai(p => ({ ...p, isa: v ? Number(v) : null }))} />
-              <FormField label="Agathe (€)" name="agathe" type="number" value={modalPai.agathe ?? ''} onChange={(v) => setModalPai(p => ({ ...p, agathe: v ? Number(v) : null }))} />
+              <FormField label="Régis payé (€)" name="regis" type="number" value={modalPai.regis ?? ''} onChange={(v) => updatePai({ regis: v ? Number(v) : null })} />
+              <FormField label="Isa payé (€)" name="isa" type="number" value={modalPai.isa ?? ''} onChange={(v) => updatePai({ isa: v ? Number(v) : null })} />
+              <FormField label="Agathe payé (€)" name="agathe" type="number" value={modalPai.agathe ?? ''} onChange={(v) => updatePai({ agathe: v ? Number(v) : null })} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <FormField label="Total (€)" name="total" type="number" value={modalPai.total ?? ''} onChange={(v) => setModalPai(p => ({ ...p, total: v ? Number(v) : null }))} />
-              <FormField label="Reste à payer (€)" name="reste_a_payer" type="number" value={modalPai.reste_a_payer ?? ''} onChange={(v) => setModalPai(p => ({ ...p, reste_a_payer: v ? Number(v) : null }))} />
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-center justify-between">
+              <span className="text-sm text-gray-600">Reste à payer (calculé)</span>
+              <span className={`font-bold text-lg ${(calcReste(modalPai) ?? 0) > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                {calcReste(modalPai) === null ? '–' : euros(calcReste(modalPai))}
+                {(calcReste(modalPai) ?? 0) <= 0 && calcReste(modalPai) !== null && ' ✅'}
+              </span>
             </div>
-            <FormField label="Date échéance" name="date_echeance" value={modalPai.date_echeance ?? ''} onChange={(v) => setModalPai(p => ({ ...p, date_echeance: v || null }))} placeholder="ex: 31/8/2026" />
-            <FormField label="Lien réservation" name="lien_reservation" type="url" value={modalPai.lien_reservation ?? ''} onChange={(v) => setModalPai(p => ({ ...p, lien_reservation: v || null }))} />
+            <FormField label="Date échéance" name="date_echeance" value={modalPai.date_echeance ?? ''} onChange={(v) => updatePai({ date_echeance: v || null })} placeholder="ex: 31/8/2026" />
+            <FormField label="Lien réservation" name="lien_reservation" type="url" value={modalPai.lien_reservation ?? ''} onChange={(v) => updatePai({ lien_reservation: v || null })} />
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setModalPai(null)} className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
               <button type="submit" disabled={sauvegarde} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">{sauvegarde ? 'Sauvegarde...' : 'Sauvegarder'}</button>

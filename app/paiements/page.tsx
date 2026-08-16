@@ -84,11 +84,16 @@ export default function PaiementsPage() {
 
   useEffect(() => { charger() }, [charger])
 
-  // Met à jour auto le reste quand on modifie le modal
+  // Met à jour auto le reste uniquement si un champ financier change
+  const CHAMPS_FINANCIERS: (keyof PaiementLog)[] = ['total', 'regis', 'isa', 'agathe']
   function updateModal(updates: Partial<PaiementLog>) {
     setModalLog(prev => {
       const next = { ...prev, ...updates }
-      return { ...next, reste_a_payer: calcReste(next) }
+      const toucheFinancier = Object.keys(updates).some(k => CHAMPS_FINANCIERS.includes(k as keyof PaiementLog))
+      if (toucheFinancier) {
+        return { ...next, reste_a_payer: calcReste(next) }
+      }
+      return next
     })
   }
 
