@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import BottomNav from '@/components/BottomNav'
+import DesktopSidebar from '@/components/DesktopSidebar'
 import { RoleProvider } from '@/components/RoleContext'
 import Toast from '@/components/Toast'
 
@@ -37,11 +38,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icon.svg" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
-      <body className={`${inter.className} bg-white min-h-screen`}>
+      <body className={`${inter.className} bg-slate-50 lg:bg-white min-h-screen`}>
         <RoleProvider>
-          <main className="max-w-2xl mx-auto pb-24 min-h-screen">
-            {children}
-          </main>
+          {/* Sidebar desktop (lg+) */}
+          <DesktopSidebar />
+
+          {/* Zone de contenu : marges adaptées mobile / desktop */}
+          <div className="lg:ml-60">
+            <main className="max-w-2xl mx-auto pb-24 min-h-screen lg:max-w-4xl lg:pb-12 lg:px-8">
+              {children}
+            </main>
+          </div>
+
+          {/* Navigation mobile (lg:hidden géré dans le composant) */}
           <BottomNav />
           <Toast />
         </RoleProvider>

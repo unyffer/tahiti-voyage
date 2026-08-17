@@ -35,16 +35,16 @@ export default function BottomNav() {
 
   return (
     <>
-      {/* Bandeau readonly */}
+      {/* Bandeau readonly — mobile uniquement (desktop : géré dans DesktopSidebar) */}
       {role === 'readonly' && (
-        <div className="fixed top-0 inset-x-0 z-50 bg-amber-400 text-amber-900 text-center text-xs font-semibold py-2 px-4">
+        <div className="lg:hidden fixed top-0 inset-x-0 z-50 bg-amber-400 text-amber-900 text-center text-xs font-semibold py-2 px-4">
           👁️ Mode lecture seule
         </div>
       )}
 
-      {/* Overlay + menu Plus */}
+      {/* Overlay + menu Plus — mobile uniquement */}
       {plusOpen && (
-        <>
+        <div className="lg:hidden">
           <div
             className="fixed inset-0 z-40 bg-black/40"
             onClick={() => setPlusOpen(false)}
@@ -70,12 +70,12 @@ export default function BottomNav() {
               ))}
             </div>
           </div>
-        </>
+        </div>
       )}
 
-      {/* Bottom tab bar */}
+      {/* Bottom tab bar — mobile uniquement */}
       <nav
-        className="fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200"
         style={{ paddingBottom: 'max(var(--sab), 8px)' }}
       >
         <div className="max-w-2xl mx-auto flex">
