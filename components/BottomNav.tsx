@@ -14,6 +14,7 @@ const MAIN_TABS = [
 ]
 
 const PLUS_LINKS = [
+  { href: '/journal', label: 'Journal', emoji: '📖' },
   { href: '/logements', label: 'Logements', emoji: '🏠' },
   { href: '/activites', label: 'Activités', emoji: '🎯' },
   { href: '/transports', label: 'Transports', emoji: '✈️' },
@@ -29,7 +30,7 @@ export default function BottomNav() {
 
   if (pathname === '/login') return null
 
-  const plusRoutes = ['/logements', '/activites', '/transports', '/checklist', '/budget', '/iles']
+  const plusRoutes = ['/journal', '/logements', '/activites', '/transports', '/checklist', '/budget', '/iles']
   const isPlusActive = plusRoutes.some(r => pathname.startsWith(r))
 
   return (
