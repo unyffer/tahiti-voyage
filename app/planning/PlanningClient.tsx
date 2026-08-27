@@ -76,12 +76,39 @@ interface ActiviteCalendar {
 
 interface CalendarDay { date: Date; dateStr: string; inTrip: boolean; etape: PlanningRow | null }
 
-function getDayIcons(dateStr: string, activites: ActiviteCalendar[]) {
-  const day = activites.filter(a => a.date_heure?.startsWith(dateStr))
-  return {
-    hasVol:      day.some(a => a.categorie === 'transport'),
-    hasActivite: day.some(a => a.categorie === 'activite' && (a.statut === 'reserve' || a.statut === 'paye')),
+/** Emoji représentatif selon la catégorie et le nom de l'activité */
+function getActiviteEmoji(a: ActiviteCalendar): string {
+  const nom = (a.nom ?? '').toLowerCase()
+  if (a.categorie === 'transport') {
+    if (nom.startsWith('vt') || nom.includes(' vol ') || nom.includes('faaa') || nom.includes('papeete')) return '✈️'
+    if (nom.includes('ferry') || nom.includes('express') || nom.includes('bateau')) return '🚢'
+    return '✈️'
   }
+  if (a.categorie === 'bouffe') {
+    if (nom.includes('snack') || nom.includes('restau') || nom.includes('coco')) return '🍽️'
+    return '🍽️'
+  }
+  // activite
+  if (nom.includes('baleine')) return '🐋'
+  if (nom.includes('raie') || nom.includes('manta')) return '🐠'
+  if (nom.includes('requin')) return '🦈'
+  if (nom.includes('tortue')) return '🐢'
+  if (nom.includes('spectacle') || nom.includes('tiki') || nom.includes('danse')) return '🎭'
+  if (nom.includes('kayak') || nom.includes('fond transparent') || nom.includes('lagoon')) return '⛵'
+  if (nom.includes('snorkeling') || nom.includes('plongée') || nom.includes('corail')) return '🤿'
+  if (nom.includes('plage') || nom.includes('pk18')) return '🏖️'
+  if (nom.includes('rando') || nom.includes('montée') || nom.includes('belvédère') || nom.includes('pic')) return '🥾'
+  if (nom.includes('restau') || nom.includes('snack') || nom.includes('bouffe') || nom.includes('coco beach')) return '🍽️'
+  return '🏄'
+}
+
+/** Activités du jour à afficher sur le calendrier (transports + activites/bouffe réservés/payés) */
+function getDayActivites(dateStr: string, activites: ActiviteCalendar[]): ActiviteCalendar[] {
+  return activites.filter(a => {
+    if (!a.date_heure?.startsWith(dateStr)) return false
+    if (a.categorie === 'transport') return true
+    return (a.statut === 'reserve' || a.statut === 'paye')
+  })
 }
 
 function buildCalendarWeeks(planning: PlanningRow[]): CalendarDay[][] {
@@ -212,59 +239,65 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
             {weeks.map((week, wi) => (
               <div key={wi} className="grid grid-cols-7 border-b border-slate-100 last:border-0">
                 {week.map(({ date, dateStr, inTrip, etape }) => {
-                  const isVol = etape?.type !== 'sejour'
-                  const hex = etape && !isVol ? getHex(etape.lieu) : null
-                  const isToday = dateStr === todayStr
+                  const isSejour  = etape?.type === 'sejour'
+                  const isFirstDay = etape?.date_debut === dateStr
+                  const hex       = isSejour ? getHex(etape!.lieu) : null
+                  const isToday   = dateStr === todayStr
                   const isSelected = selectedDay === dateStr
-                  const icons = inTrip ? getDayIcons(dateStr, activites) : { hasVol: false, hasActivite: false }
-                  const hasContent = icons.hasVol || icons.hasActivite
+                  const dayActs   = inTrip ? getDayActivites(dateStr, activites) : []
 
                   return (
                     <button
                       key={dateStr}
                       onClick={() => inTrip && setSelectedDay(isSelected ? null : dateStr)}
-                      className={`relative min-h-[80px] p-1.5 border-r border-slate-100 last:border-0 flex flex-col text-left transition-colors ${
-                        !inTrip ? 'bg-slate-50/30' : isSelected ? 'bg-sky-50' : 'hover:bg-slate-50/80'
-                      } ${isSelected ? 'ring-2 ring-inset ring-sky-400' : ''}`}
+                      className={`relative min-h-[80px] p-1.5 border-r border-slate-100 last:border-0 flex flex-col text-left transition-colors select-none ${
+                        !inTrip ? 'bg-slate-50/30' : isSelected ? 'bg-sky-50 ring-2 ring-inset ring-sky-400' : 'hover:bg-black/[.02]'
+                      }`}
                       style={hex && !isSelected ? { backgroundColor: `${hex}18` } : undefined}
                     >
                       {/* Numéro du jour */}
                       <span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 ${
                         isToday
                           ? 'bg-sky-600 text-white'
-                          : isSelected
-                            ? 'bg-sky-100 text-sky-700'
-                            : inTrip ? 'text-slate-800' : 'text-slate-300'
+                          : isSelected ? 'bg-sky-100 text-sky-700'
+                          : inTrip ? 'text-slate-800' : 'text-slate-300'
                       }`}>
                         {date.getDate()}
                       </span>
 
                       {/* Mois si 1er */}
                       {date.getDate() === 1 && (
-                        <span className="text-[9px] font-bold text-slate-400 uppercase leading-none mb-0.5">
+                        <span className="text-[8px] font-semibold text-slate-400 uppercase leading-none">
                           {date.toLocaleDateString('fr-FR', { month: 'short' })}
                         </span>
                       )}
 
-                      {/* Emoji île ou ✈️ itinéraire */}
+                      {/* Nom de l'île — uniquement le premier jour du séjour */}
                       {etape && inTrip && (
-                        <div className="flex-1 flex items-center justify-center">
-                          {isVol ? (
-                            <span className="text-xl leading-none">✈️</span>
-                          ) : (
-                            <span className="text-xl leading-none">{getEmoji(etape.lieu)}</span>
-                          )}
+                        <div className="flex-1 flex flex-col justify-center items-center mt-0.5 w-full overflow-hidden">
+                          {etape.type !== 'sejour' ? (
+                            /* Vol itinéraire international */
+                            <span className="text-base leading-none">✈️</span>
+                          ) : isFirstDay ? (
+                            /* Premier jour de l'île */
+                            <span
+                              className="text-[10px] font-bold text-center leading-tight w-full px-0.5 truncate"
+                              style={{ color: hex ?? '#475569' }}
+                            >
+                              {etape.lieu}
+                            </span>
+                          ) : null /* Jours suivants : fond coloré suffit */}
                         </div>
                       )}
 
-                      {/* Points d'activité */}
-                      {hasContent && (
-                        <div className="flex gap-1 justify-center mt-auto">
-                          {icons.hasVol && (
-                            <span className="w-2 h-2 rounded-full bg-sky-400 flex-shrink-0" title="Vol interne" />
-                          )}
-                          {icons.hasActivite && (
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" title="Activité réservée" />
+                      {/* Emojis des activités du jour */}
+                      {dayActs.length > 0 && (
+                        <div className="flex flex-wrap gap-x-0.5 gap-y-0 mt-auto leading-none">
+                          {dayActs.slice(0, 3).map(a => (
+                            <span key={a.id} className="text-sm leading-tight">{getActiviteEmoji(a)}</span>
+                          ))}
+                          {dayActs.length > 3 && (
+                            <span className="text-[8px] text-slate-400 self-end">+{dayActs.length - 3}</span>
                           )}
                         </div>
                       )}
@@ -278,18 +311,18 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
           {/* ── Panneau détail du jour sélectionné ── */}
           {selectedDay && (() => {
             const etape = getEtapeForDay(selectedDay, planning)
-            const dayActivites = activites.filter(a => a.date_heure?.startsWith(selectedDay))
-            const flights = dayActivites.filter(a => a.categorie === 'transport')
-            const acts    = dayActivites.filter(a => a.categorie === 'activite' && (a.statut === 'reserve' || a.statut === 'paye'))
+            const dayActs = getDayActivites(selectedDay, activites)
+            const flights = dayActs.filter(a => a.categorie === 'transport')
+            const acts    = dayActs.filter(a => a.categorie !== 'transport')
             const dateLabel = new Date(selectedDay + 'T12:00:00').toLocaleDateString('fr-FR', {
               weekday: 'long', day: 'numeric', month: 'long'
             })
-            const hex = etape && etape.type === 'sejour' ? getHex(etape.lieu) : null
-            const slug = etape && etape.type === 'sejour' ? getSlug(etape.lieu) : null
+            const hex  = etape?.type === 'sejour' ? getHex(etape.lieu) : null
+            const slug = etape?.type === 'sejour' ? getSlug(etape.lieu) : null
 
             return (
               <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-                {/* Header date */}
+                {/* Header */}
                 <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between"
                   style={hex ? { backgroundColor: `${hex}15` } : undefined}>
                   <div className="flex items-center gap-2">
@@ -302,8 +335,7 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
                       <p className="text-sm font-bold text-slate-900 capitalize">{dateLabel}</p>
                       {etape && (
                         <p className="text-xs font-medium" style={{ color: hex ?? '#64748b' }}>
-                          {etape.lieu}
-                          {etape.notes && ` · ${etape.notes}`}
+                          {etape.lieu}{etape.notes ? ` · ${etape.notes}` : ''}
                         </p>
                       )}
                     </div>
@@ -318,13 +350,11 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
                     <p className="px-4 pt-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vols</p>
                     {flights.map(a => (
                       <div key={a.id} className="flex items-start gap-3 px-4 py-2.5 border-b border-slate-50 last:border-0">
-                        <span className="text-base mt-0.5">✈️</span>
+                        <span className="text-base mt-0.5">{getActiviteEmoji(a)}</span>
                         <div>
                           <p className="text-sm font-semibold text-slate-800">{a.nom}</p>
-                          {a.date_heure && (
-                            <p className="text-xs text-sky-600 font-medium">
-                              {a.date_heure.includes(' ') ? a.date_heure.split(' ')[1] : a.date_heure}
-                            </p>
+                          {a.date_heure?.includes(' ') && (
+                            <p className="text-xs text-sky-600 font-medium">{a.date_heure.split(' ')[1]}</p>
                           )}
                           {a.lieu && <p className="text-xs text-slate-400">📍 {a.lieu}</p>}
                         </div>
@@ -333,19 +363,17 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
                   </div>
                 )}
 
-                {/* Activités */}
+                {/* Activités + restos */}
                 {acts.length > 0 && (
                   <div>
                     <p className="px-4 pt-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Activités</p>
                     {acts.map(a => (
                       <div key={a.id} className="flex items-start gap-3 px-4 py-2.5 border-b border-slate-50 last:border-0">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 flex-shrink-0 mt-1.5" />
+                        <span className="text-base mt-0.5">{getActiviteEmoji(a)}</span>
                         <div>
                           <p className="text-sm font-semibold text-slate-800">{a.nom}</p>
-                          {a.date_heure && (
-                            <p className="text-xs text-emerald-600 font-medium">
-                              {a.date_heure.includes(' ') ? a.date_heure.split(' ')[1] : a.date_heure}
-                            </p>
+                          {a.date_heure?.includes(' ') && (
+                            <p className="text-xs text-emerald-600 font-medium">{a.date_heure.split(' ')[1]}</p>
                           )}
                           {a.lieu && <p className="text-xs text-slate-400">📍 {a.lieu}</p>}
                         </div>
@@ -354,14 +382,13 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
                   </div>
                 )}
 
-                {/* Aucune activité, juste l'île */}
+                {/* Rien ce jour */}
                 {flights.length === 0 && acts.length === 0 && (
                   <p className="px-4 py-3 text-xs text-slate-400">
-                    {etape ? `Séjour à ${etape.lieu}` : 'Aucune activité programmée ce jour.'}
+                    {etape ? `Séjour à ${etape.lieu} · aucune activité programmée.` : 'Aucune activité programmée ce jour.'}
                   </p>
                 )}
 
-                {/* Lien vers l'île */}
                 {slug && (
                   <div className="px-4 pb-3 pt-1">
                     <Link href={`/iles/${slug}`}
@@ -390,12 +417,16 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
                 )
               })}
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-sky-400 flex-shrink-0" />
-                <span className="text-xs text-slate-600">Vol interne</span>
+                <span className="text-xs">✈️</span>
+                <span className="text-xs text-slate-600">Vol</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
+                <span className="text-xs">🏄</span>
                 <span className="text-xs text-slate-600">Activité réservée</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs">🍽️</span>
+                <span className="text-xs text-slate-600">Resto réservé</span>
               </div>
             </div>
           </div>
