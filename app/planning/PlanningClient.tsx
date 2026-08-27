@@ -102,10 +102,34 @@ function getActiviteEmoji(a: ActiviteCalendar): string {
   return '🏄'
 }
 
+/**
+ * Extrait la date ISO YYYY-MM-DD depuis différents formats saisis :
+ *   "2026-09-08 12:30"  → "2026-09-08"
+ *   "08/09"             → "2026-09-08"
+ *   "08/09 12h30"       → "2026-09-08"
+ *   "08/09 à 12h30"     → "2026-09-08"
+ *   "08/09/2026"        → "2026-09-08"
+ */
+function parseDateIso(dateHeure: string | null): string | null {
+  if (!dateHeure) return null
+  const s = dateHeure.trim()
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10)
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})/)
+  if (m) return `2026-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+  return null
+}
+
+/** Extrait l'heure lisible depuis le champ date_heure (ex: "12h30") */
+function parseHeure(dateHeure: string | null): string | null {
+  if (!dateHeure) return null
+  const m = dateHeure.match(/(\d{1,2})[h:](\d{2})/)
+  return m ? `${m[1]}h${m[2]}` : null
+}
+
 /** Activités du jour à afficher sur le calendrier (transports + activites/bouffe réservés/payés) */
 function getDayActivites(dateStr: string, activites: ActiviteCalendar[]): ActiviteCalendar[] {
   return activites.filter(a => {
-    if (!a.date_heure?.startsWith(dateStr)) return false
+    if (parseDateIso(a.date_heure) !== dateStr) return false
     if (a.categorie === 'transport') return true
     return (a.statut === 'reserve' || a.statut === 'paye')
   })
@@ -341,8 +365,8 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
                         <span className="text-base mt-0.5">{getActiviteEmoji(a)}</span>
                         <div>
                           <p className="text-sm font-semibold text-slate-800">{a.nom}</p>
-                          {a.date_heure?.includes(' ') && (
-                            <p className="text-xs text-sky-600 font-medium">{a.date_heure.split(' ')[1]}</p>
+                          {parseHeure(a.date_heure) && (
+                            <p className="text-xs text-sky-600 font-medium">{parseHeure(a.date_heure)}</p>
                           )}
                           {a.lieu && <p className="text-xs text-slate-400">📍 {a.lieu}</p>}
                         </div>
@@ -360,8 +384,8 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
                         <span className="text-base mt-0.5">{getActiviteEmoji(a)}</span>
                         <div>
                           <p className="text-sm font-semibold text-slate-800">{a.nom}</p>
-                          {a.date_heure?.includes(' ') && (
-                            <p className="text-xs text-emerald-600 font-medium">{a.date_heure.split(' ')[1]}</p>
+                          {parseHeure(a.date_heure) && (
+                            <p className="text-xs text-emerald-600 font-medium">{parseHeure(a.date_heure)}</p>
                           )}
                           {a.lieu && <p className="text-xs text-slate-400">📍 {a.lieu}</p>}
                         </div>
