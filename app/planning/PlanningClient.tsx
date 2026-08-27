@@ -240,7 +240,6 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
               <div key={wi} className="grid grid-cols-7 border-b border-slate-100 last:border-0">
                 {week.map(({ date, dateStr, inTrip, etape }) => {
                   const isSejour  = etape?.type === 'sejour'
-                  const isFirstDay = etape?.date_debut === dateStr
                   const hex       = isSejour ? getHex(etape!.lieu) : null
                   const isToday   = dateStr === todayStr
                   const isSelected = selectedDay === dateStr
@@ -272,21 +271,10 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
                         </span>
                       )}
 
-                      {/* Nom de l'île — uniquement le premier jour du séjour */}
-                      {etape && inTrip && (
-                        <div className="flex-1 flex flex-col justify-center items-center mt-0.5 w-full overflow-hidden">
-                          {etape.type !== 'sejour' ? (
-                            /* Vol itinéraire international */
-                            <span className="text-base leading-none">✈️</span>
-                          ) : isFirstDay ? (
-                            /* Premier jour de l'île */
-                            <span
-                              className="text-[10px] font-bold text-center leading-tight w-full px-0.5 truncate"
-                              style={{ color: hex ?? '#475569' }}
-                            >
-                              {etape.lieu}
-                            </span>
-                          ) : null /* Jours suivants : fond coloré suffit */}
+                      {/* Vol itinéraire international — uniquement sur les jours aller/retour */}
+                      {etape && inTrip && etape.type !== 'sejour' && (
+                        <div className="flex-1 flex items-center justify-center">
+                          <span className="text-base leading-none">✈️</span>
                         </div>
                       )}
 
