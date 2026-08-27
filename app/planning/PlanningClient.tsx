@@ -263,53 +263,60 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
             {weeks.map((week, wi) => (
               <div key={wi} className="grid grid-cols-7 border-b border-slate-100 last:border-0">
                 {week.map(({ date, dateStr, inTrip, etape }) => {
-                  const isSejour  = etape?.type === 'sejour'
-                  const hex       = isSejour ? getHex(etape!.lieu) : null
-                  const isToday   = dateStr === todayStr
+                  const isSejour   = etape?.type === 'sejour'
+                  const isFirstDay = etape?.date_debut === dateStr
+                  const hex        = isSejour ? getHex(etape!.lieu) : null
+                  const isToday    = dateStr === todayStr
                   const isSelected = selectedDay === dateStr
-                  const dayActs   = inTrip ? getDayActivites(dateStr, activites) : []
+                  const dayActs    = inTrip ? getDayActivites(dateStr, activites) : []
 
                   return (
                     <button
                       key={dateStr}
                       onClick={() => inTrip && setSelectedDay(isSelected ? null : dateStr)}
-                      className={`relative min-h-[80px] p-1.5 border-r border-slate-100 last:border-0 flex flex-col text-left transition-colors select-none ${
+                      className={`relative min-h-[90px] p-1.5 border-r border-slate-100 last:border-0 flex flex-col text-left transition-colors select-none ${
                         !inTrip ? 'bg-slate-50/30' : isSelected ? 'bg-sky-50 ring-2 ring-inset ring-sky-400' : 'hover:bg-black/[.02]'
                       }`}
                       style={hex && !isSelected ? { backgroundColor: `${hex}18` } : undefined}
                     >
                       {/* Numéro du jour */}
                       <span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 ${
-                        isToday
-                          ? 'bg-sky-600 text-white'
-                          : isSelected ? 'bg-sky-100 text-sky-700'
-                          : inTrip ? 'text-slate-800' : 'text-slate-300'
+                        isToday    ? 'bg-sky-600 text-white'
+                        : isSelected ? 'bg-sky-100 text-sky-700'
+                        : inTrip   ? 'text-slate-800' : 'text-slate-300'
                       }`}>
                         {date.getDate()}
                       </span>
 
                       {/* Mois si 1er */}
                       {date.getDate() === 1 && (
-                        <span className="text-[8px] font-semibold text-slate-400 uppercase leading-none">
+                        <span className="text-[8px] font-semibold text-slate-400 uppercase leading-none mb-0.5">
                           {date.toLocaleDateString('fr-FR', { month: 'short' })}
                         </span>
                       )}
 
-                      {/* Vol itinéraire international — uniquement sur les jours aller/retour */}
+                      {/* Nom de l'île — premier jour du séjour uniquement */}
+                      {isSejour && isFirstDay && hex && (
+                        <span className="text-[11px] font-black leading-tight truncate w-full mt-0.5" style={{ color: hex }}>
+                          {etape!.lieu}
+                        </span>
+                      )}
+
+                      {/* Vol itinéraire international */}
                       {etape && inTrip && etape.type !== 'sejour' && (
                         <div className="flex-1 flex items-center justify-center">
-                          <span className="text-base leading-none">✈️</span>
+                          <span className="text-xl leading-none">✈️</span>
                         </div>
                       )}
 
-                      {/* Emojis des activités du jour */}
+                      {/* Emojis des activités du jour — plus grands */}
                       {dayActs.length > 0 && (
-                        <div className="flex flex-wrap gap-x-0.5 gap-y-0 mt-auto leading-none">
+                        <div className="flex flex-wrap gap-0.5 mt-auto">
                           {dayActs.slice(0, 3).map(a => (
-                            <span key={a.id} className="text-sm leading-tight">{getActiviteEmoji(a)}</span>
+                            <span key={a.id} className="text-base leading-none">{getActiviteEmoji(a)}</span>
                           ))}
                           {dayActs.length > 3 && (
-                            <span className="text-[8px] text-slate-400 self-end">+{dayActs.length - 3}</span>
+                            <span className="text-[9px] text-slate-400 self-end">+{dayActs.length - 3}</span>
                           )}
                         </div>
                       )}
