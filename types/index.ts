@@ -49,6 +49,9 @@ export interface ActiviteRow {
   commentaire: string | null
   gratuit: boolean
   statut: 'a_faire' | 'reserve' | 'paye' | null
+  date_heure: string | null
+  lieu: string | null
+  contact: string | null
 }
 
 export interface ChecklistRow {

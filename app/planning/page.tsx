@@ -4,14 +4,20 @@ import { supabase } from '@/lib/supabase'
 import PlanningClient from './PlanningClient'
 
 export default async function PlanningPage() {
-  const { data: rows, error } = await supabase
-    .from('planning')
-    .select('*')
-    .order('sort_order', { ascending: true, nullsFirst: false })
+  const [{ data: rows, error }, { data: activites }] = await Promise.all([
+    supabase
+      .from('planning')
+      .select('*')
+      .order('sort_order', { ascending: true, nullsFirst: false }),
+    supabase
+      .from('activites')
+      .select('id, categorie, statut, date_heure')
+      .not('date_heure', 'is', null),
+  ])
 
   if (error) {
     return <p className="text-red-500">Erreur : {error.message}</p>
   }
 
-  return <PlanningClient planning={rows ?? []} />
+  return <PlanningClient planning={rows ?? []} activites={activites ?? []} />
 }

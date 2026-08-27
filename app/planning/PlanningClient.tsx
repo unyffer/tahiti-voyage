@@ -69,7 +69,17 @@ function getEtapeForDay(dateStr: string, planning: PlanningRow[]): PlanningRow |
   return planning.find(e => e.type !== 'sejour' && e.date_debut === dateStr) ?? null
 }
 
+interface ActiviteCalendar { id: number; categorie: string; statut: string | null; date_heure: string | null }
+
 interface CalendarDay { date: Date; dateStr: string; inTrip: boolean; etape: PlanningRow | null }
+
+function getDayIcons(dateStr: string, activites: ActiviteCalendar[]) {
+  const dayActivites = activites.filter(a => a.date_heure?.startsWith(dateStr))
+  return {
+    hasVol: dayActivites.some(a => a.categorie === 'transport'),
+    hasActivite: dayActivites.some(a => a.categorie === 'activite' && (a.statut === 'reserve' || a.statut === 'paye')),
+  }
+}
 
 function buildCalendarWeeks(planning: PlanningRow[]): CalendarDay[][] {
   const tripStart = new Date(2026, 8, 4)
@@ -95,7 +105,7 @@ function buildCalendarWeeks(planning: PlanningRow[]): CalendarDay[][] {
   return weeks
 }
 
-export default function PlanningClient({ planning }: { planning: PlanningRow[] }) {
+export default function PlanningClient({ planning, activites }: { planning: PlanningRow[]; activites: ActiviteCalendar[] }) {
   const [vue, setVue] = useState<'timeline' | 'calendrier'>('timeline')
   const weeks = useMemo(() => buildCalendarWeeks(planning), [planning])
   const todayStr = toDateStr(new Date())
@@ -207,6 +217,7 @@ export default function PlanningClient({ planning }: { planning: PlanningRow[] }
                   const hex = etape && !isVol ? getHex(etape.lieu) : null
                   const isToday = dateStr === todayStr
                   const slug = etape && !isVol ? getSlug(etape.lieu) : null
+                  const icons = inTrip ? getDayIcons(dateStr, activites) : { hasVol: false, hasActivite: false }
 
                   return (
                     <div key={dateStr}
@@ -238,6 +249,17 @@ export default function PlanningClient({ planning }: { planning: PlanningRow[] }
                           ) : null}
                         </div>
                       )}
+                      {/* Icônes activités du jour */}
+                      {(icons.hasVol || icons.hasActivite) && (
+                        <div className="flex gap-0.5 mt-auto">
+                          {icons.hasVol && (
+                            <span className="text-[10px] leading-none" title="Vol interne">✈️</span>
+                          )}
+                          {icons.hasActivite && (
+                            <span className="text-[10px] leading-none" title="Activité réservée">🏄</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -261,7 +283,15 @@ export default function PlanningClient({ planning }: { planning: PlanningRow[] }
               })}
               <div className="flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded-sm flex-shrink-0 bg-slate-300" />
-                <span className="text-xs text-slate-600">✈️ Vol</span>
+                <span className="text-xs text-slate-600">✈️ Vol (itinéraire)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs">✈️</span>
+                <span className="text-xs text-slate-600">Vol interne (activités)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs">🏄</span>
+                <span className="text-xs text-slate-600">Activité réservée</span>
               </div>
             </div>
           </div>
