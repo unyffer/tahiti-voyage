@@ -11,7 +11,7 @@ export default async function PlanningPage() {
       .order('sort_order', { ascending: true, nullsFirst: false }),
     supabase
       .from('activites')
-      .select('id, categorie, statut, date_heure')
+      .select('id, nom, categorie, statut, date_heure, lieu')
       .not('date_heure', 'is', null),
   ])
 

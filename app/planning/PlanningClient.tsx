@@ -69,15 +69,18 @@ function getEtapeForDay(dateStr: string, planning: PlanningRow[]): PlanningRow |
   return planning.find(e => e.type !== 'sejour' && e.date_debut === dateStr) ?? null
 }
 
-interface ActiviteCalendar { id: number; categorie: string; statut: string | null; date_heure: string | null }
+interface ActiviteCalendar {
+  id: number; nom: string; categorie: string; statut: string | null
+  date_heure: string | null; lieu: string | null
+}
 
 interface CalendarDay { date: Date; dateStr: string; inTrip: boolean; etape: PlanningRow | null }
 
 function getDayIcons(dateStr: string, activites: ActiviteCalendar[]) {
-  const dayActivites = activites.filter(a => a.date_heure?.startsWith(dateStr))
+  const day = activites.filter(a => a.date_heure?.startsWith(dateStr))
   return {
-    hasVol: dayActivites.some(a => a.categorie === 'transport'),
-    hasActivite: dayActivites.some(a => a.categorie === 'activite' && (a.statut === 'reserve' || a.statut === 'paye')),
+    hasVol:      day.some(a => a.categorie === 'transport'),
+    hasActivite: day.some(a => a.categorie === 'activite' && (a.statut === 'reserve' || a.statut === 'paye')),
   }
 }
 
@@ -107,6 +110,7 @@ function buildCalendarWeeks(planning: PlanningRow[]): CalendarDay[][] {
 
 export default function PlanningClient({ planning, activites }: { planning: PlanningRow[]; activites: ActiviteCalendar[] }) {
   const [vue, setVue] = useState<'timeline' | 'calendrier'>('timeline')
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const weeks = useMemo(() => buildCalendarWeeks(planning), [planning])
   const todayStr = toDateStr(new Date())
 
@@ -117,7 +121,6 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
           <h1 className="text-3xl font-black text-slate-900">Planning</h1>
           <p className="text-slate-400 text-sm mt-0.5">4 sept → 2 oct · 28 nuits</p>
         </div>
-        {/* Toggle */}
         <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
           {[{ id: 'timeline', label: '📋' }, { id: 'calendrier', label: '📅' }].map(({ id, label }) => (
             <button key={id}
@@ -145,15 +148,12 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
 
                 return (
                   <div key={etape.id} className="relative flex gap-4 pl-4">
-                    {/* Dot */}
                     <div
                       className="relative z-10 flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg border-2 bg-white shadow-sm"
                       style={{ borderColor: isVol ? '#e2e8f0' : (hex ?? '#0ea5e9') }}
                     >
                       {isVol ? '✈️' : getEmoji(etape.lieu)}
                     </div>
-
-                    {/* Card */}
                     <div className="flex-1 bg-white border border-slate-100 rounded-2xl p-4 shadow-sm mb-0">
                       <div className="flex items-start justify-between gap-2">
                         <div>
@@ -178,7 +178,6 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
                           </span>
                         )}
                       </div>
-
                       {etape.notes && (
                         <p className="text-sm text-slate-500 mt-2 bg-slate-50 rounded-xl p-2.5">{etape.notes}</p>
                       )}
@@ -200,12 +199,12 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
 
       {/* ── CALENDRIER ── */}
       {vue === 'calendrier' && (
-        <div className="px-5 pb-4 space-y-4">
+        <div className="px-4 pb-4 space-y-3">
           <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-            {/* Jours de la semaine */}
+            {/* En-têtes jours */}
             <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
-              {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((j, i) => (
-                <div key={i} className="text-center py-2 text-xs font-bold text-slate-400 uppercase">{j}</div>
+              {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((j, i) => (
+                <div key={i} className="text-center py-2 text-[10px] font-bold text-slate-400 uppercase">{j}</div>
               ))}
             </div>
 
@@ -216,56 +215,165 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
                   const isVol = etape?.type !== 'sejour'
                   const hex = etape && !isVol ? getHex(etape.lieu) : null
                   const isToday = dateStr === todayStr
-                  const slug = etape && !isVol ? getSlug(etape.lieu) : null
+                  const isSelected = selectedDay === dateStr
                   const icons = inTrip ? getDayIcons(dateStr, activites) : { hasVol: false, hasActivite: false }
+                  const hasContent = icons.hasVol || icons.hasActivite
 
                   return (
-                    <div key={dateStr}
-                      className={`relative min-h-[68px] p-1 border-r border-slate-100 last:border-0 flex flex-col ${
-                        !inTrip ? 'bg-slate-50/50' : ''
-                      }`}
-                      style={hex ? { backgroundColor: `${hex}15` } : undefined}
+                    <button
+                      key={dateStr}
+                      onClick={() => inTrip && setSelectedDay(isSelected ? null : dateStr)}
+                      className={`relative min-h-[80px] p-1.5 border-r border-slate-100 last:border-0 flex flex-col text-left transition-colors ${
+                        !inTrip ? 'bg-slate-50/30' : isSelected ? 'bg-sky-50' : 'hover:bg-slate-50/80'
+                      } ${isSelected ? 'ring-2 ring-inset ring-sky-400' : ''}`}
+                      style={hex && !isSelected ? { backgroundColor: `${hex}18` } : undefined}
                     >
-                      <span className={`text-[11px] font-bold w-5 h-5 flex items-center justify-center rounded-full mb-0.5 ${
-                        isToday ? 'bg-sky-600 text-white' : inTrip ? 'text-slate-700' : 'text-slate-300'
+                      {/* Numéro du jour */}
+                      <span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 ${
+                        isToday
+                          ? 'bg-sky-600 text-white'
+                          : isSelected
+                            ? 'bg-sky-100 text-sky-700'
+                            : inTrip ? 'text-slate-800' : 'text-slate-300'
                       }`}>
                         {date.getDate()}
                       </span>
+
+                      {/* Mois si 1er */}
                       {date.getDate() === 1 && (
-                        <span className="text-[8px] font-bold text-slate-400 uppercase -mt-0.5 mb-0.5">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase leading-none mb-0.5">
                           {date.toLocaleDateString('fr-FR', { month: 'short' })}
                         </span>
                       )}
-                      {etape && (
-                        <div className="flex-1 flex flex-col">
+
+                      {/* Emoji île ou ✈️ itinéraire */}
+                      {etape && inTrip && (
+                        <div className="flex-1 flex items-center justify-center">
                           {isVol ? (
-                            <span className="text-xs">✈️</span>
-                          ) : hex && slug ? (
-                            <Link href={`/iles/${slug}`}
-                              className="text-[9px] font-bold leading-tight truncate rounded-lg px-1 py-0.5 text-white hover:opacity-90"
-                              style={{ backgroundColor: hex }}>
-                              {getEmoji(etape.lieu)} {etape.lieu}
-                            </Link>
-                          ) : null}
+                            <span className="text-xl leading-none">✈️</span>
+                          ) : (
+                            <span className="text-xl leading-none">{getEmoji(etape.lieu)}</span>
+                          )}
                         </div>
                       )}
-                      {/* Icônes activités du jour */}
-                      {(icons.hasVol || icons.hasActivite) && (
-                        <div className="flex gap-0.5 mt-auto">
+
+                      {/* Points d'activité */}
+                      {hasContent && (
+                        <div className="flex gap-1 justify-center mt-auto">
                           {icons.hasVol && (
-                            <span className="text-[10px] leading-none" title="Vol interne">✈️</span>
+                            <span className="w-2 h-2 rounded-full bg-sky-400 flex-shrink-0" title="Vol interne" />
                           )}
                           {icons.hasActivite && (
-                            <span className="text-[10px] leading-none" title="Activité réservée">🏄</span>
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" title="Activité réservée" />
                           )}
                         </div>
                       )}
-                    </div>
+                    </button>
                   )
                 })}
               </div>
             ))}
           </div>
+
+          {/* ── Panneau détail du jour sélectionné ── */}
+          {selectedDay && (() => {
+            const etape = getEtapeForDay(selectedDay, planning)
+            const dayActivites = activites.filter(a => a.date_heure?.startsWith(selectedDay))
+            const flights = dayActivites.filter(a => a.categorie === 'transport')
+            const acts    = dayActivites.filter(a => a.categorie === 'activite' && (a.statut === 'reserve' || a.statut === 'paye'))
+            const dateLabel = new Date(selectedDay + 'T12:00:00').toLocaleDateString('fr-FR', {
+              weekday: 'long', day: 'numeric', month: 'long'
+            })
+            const hex = etape && etape.type === 'sejour' ? getHex(etape.lieu) : null
+            const slug = etape && etape.type === 'sejour' ? getSlug(etape.lieu) : null
+
+            return (
+              <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+                {/* Header date */}
+                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between"
+                  style={hex ? { backgroundColor: `${hex}15` } : undefined}>
+                  <div className="flex items-center gap-2">
+                    {etape && (
+                      <span className="text-xl">
+                        {etape.type !== 'sejour' ? '✈️' : getEmoji(etape.lieu)}
+                      </span>
+                    )}
+                    <div>
+                      <p className="text-sm font-bold text-slate-900 capitalize">{dateLabel}</p>
+                      {etape && (
+                        <p className="text-xs font-medium" style={{ color: hex ?? '#64748b' }}>
+                          {etape.lieu}
+                          {etape.notes && ` · ${etape.notes}`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedDay(null)}
+                    className="text-slate-400 hover:text-slate-600 text-lg leading-none p-1">✕</button>
+                </div>
+
+                {/* Vols internes */}
+                {flights.length > 0 && (
+                  <div>
+                    <p className="px-4 pt-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vols</p>
+                    {flights.map(a => (
+                      <div key={a.id} className="flex items-start gap-3 px-4 py-2.5 border-b border-slate-50 last:border-0">
+                        <span className="text-base mt-0.5">✈️</span>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">{a.nom}</p>
+                          {a.date_heure && (
+                            <p className="text-xs text-sky-600 font-medium">
+                              {a.date_heure.includes(' ') ? a.date_heure.split(' ')[1] : a.date_heure}
+                            </p>
+                          )}
+                          {a.lieu && <p className="text-xs text-slate-400">📍 {a.lieu}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Activités */}
+                {acts.length > 0 && (
+                  <div>
+                    <p className="px-4 pt-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Activités</p>
+                    {acts.map(a => (
+                      <div key={a.id} className="flex items-start gap-3 px-4 py-2.5 border-b border-slate-50 last:border-0">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 flex-shrink-0 mt-1.5" />
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">{a.nom}</p>
+                          {a.date_heure && (
+                            <p className="text-xs text-emerald-600 font-medium">
+                              {a.date_heure.includes(' ') ? a.date_heure.split(' ')[1] : a.date_heure}
+                            </p>
+                          )}
+                          {a.lieu && <p className="text-xs text-slate-400">📍 {a.lieu}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Aucune activité, juste l'île */}
+                {flights.length === 0 && acts.length === 0 && (
+                  <p className="px-4 py-3 text-xs text-slate-400">
+                    {etape ? `Séjour à ${etape.lieu}` : 'Aucune activité programmée ce jour.'}
+                  </p>
+                )}
+
+                {/* Lien vers l'île */}
+                {slug && (
+                  <div className="px-4 pb-3 pt-1">
+                    <Link href={`/iles/${slug}`}
+                      className="text-xs font-semibold hover:opacity-70 transition-opacity"
+                      style={{ color: hex ?? '#0ea5e9' }}>
+                      Voir toutes les activités de {etape!.lieu} →
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Légende */}
           <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
@@ -282,15 +390,11 @@ export default function PlanningClient({ planning, activites }: { planning: Plan
                 )
               })}
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm flex-shrink-0 bg-slate-300" />
-                <span className="text-xs text-slate-600">✈️ Vol (itinéraire)</span>
+                <span className="w-2 h-2 rounded-full bg-sky-400 flex-shrink-0" />
+                <span className="text-xs text-slate-600">Vol interne</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="text-xs">✈️</span>
-                <span className="text-xs text-slate-600">Vol interne (activités)</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs">🏄</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
                 <span className="text-xs text-slate-600">Activité réservée</span>
               </div>
             </div>

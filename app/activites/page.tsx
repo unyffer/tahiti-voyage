@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { ILES } from '@/lib/constants'
 import Link from 'next/link'
 import BottomSheet from '@/components/BottomSheet'
@@ -30,11 +30,89 @@ function euros(n: number | null | undefined) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
 }
 
-function ActiviteCard({ a, canEdit, onEdit, onDelete }: {
+type EditableField = 'date_heure' | 'lieu' | 'contact'
+
+const FIELD_CONFIG: Record<EditableField, { icon: string; label: string; placeholder: string; color: string; bg: string; border: string }> = {
+  date_heure: { icon: '📅', label: '+ Date', placeholder: 'ex: 08/09 à 12h30', color: 'text-sky-700', bg: 'bg-sky-50', border: 'border-sky-200' },
+  lieu:       { icon: '📍', label: '+ Lieu', placeholder: 'ex: Lagoon Vibes',  color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+  contact:    { icon: '👤', label: '+ Contact', placeholder: 'ex: Pension Téreia', color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200' },
+}
+
+function InlineTag({ field, value, canEdit, onSave }: {
+  field: EditableField
+  value: string | null
+  canEdit: boolean
+  onSave: (val: string | null) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value ?? '')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const cfg = FIELD_CONFIG[field]
+
+  function startEdit() {
+    if (!canEdit) return
+    setDraft(value ?? '')
+    setEditing(true)
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }
+
+  function commit() {
+    setEditing(false)
+    onSave(draft.trim() || null)
+  }
+
+  function onKey(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') commit()
+    if (e.key === 'Escape') setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <span className="text-xs">{cfg.icon}</span>
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={onKey}
+          placeholder={cfg.placeholder}
+          className={`text-xs px-2 py-0.5 rounded-full border ${cfg.border} ${cfg.bg} ${cfg.color} outline-none w-40`}
+        />
+      </div>
+    )
+  }
+
+  if (value) {
+    return (
+      <button
+        onClick={startEdit}
+        className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium transition-opacity ${cfg.bg} ${cfg.border} ${cfg.color} ${canEdit ? 'hover:opacity-70 cursor-pointer' : 'cursor-default'}`}
+      >
+        <span>{cfg.icon}</span>
+        <span>{value}</span>
+      </button>
+    )
+  }
+
+  if (!canEdit) return null
+
+  return (
+    <button
+      onClick={startEdit}
+      className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border border-dashed border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-500 transition-all"
+    >
+      {cfg.label}
+    </button>
+  )
+}
+
+function ActiviteCard({ a, canEdit, onEdit, onDelete, onFieldSave }: {
   a: Activite
   canEdit: boolean
   onEdit: () => void
   onDelete: () => void
+  onFieldSave: (id: number, field: string, value: string | null) => void
 }) {
   const isIdee = !a.statut || a.statut === 'a_faire'
   const liens = a.liens?.length > 0 ? a.liens : a.lien ? [a.lien] : []
@@ -43,49 +121,37 @@ function ActiviteCard({ a, canEdit, onEdit, onDelete }: {
     <div className="flex items-start gap-3 px-4 py-3 border-b border-slate-100 last:border-0">
       <div className="flex-1 min-w-0">
         {/* Nom + badges */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap mb-1.5">
           <span className="font-semibold text-slate-900 text-sm">{a.nom}</span>
           {!isIdee && <StatusBadge statut={a.statut} />}
           {a.gratuit && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Gratuit</span>}
+          {a.prix != null && <span className="text-xs font-bold text-slate-600">{euros(a.prix)}</span>}
         </div>
 
-        {/* Date · Lieu · Contact (inline) */}
-        {(a.date_heure || a.lieu || a.contact) && (
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-            {a.date_heure && (
-              <span className="text-xs text-slate-500 flex items-center gap-0.5">
-                <span>📅</span> {a.date_heure}
-              </span>
-            )}
-            {a.lieu && (
-              <span className="text-xs text-slate-500 flex items-center gap-0.5">
-                <span>📍</span> {a.lieu}
-              </span>
-            )}
-            {a.contact && (
-              <span className="text-xs text-slate-500 flex items-center gap-0.5">
-                <span>👤</span> {a.contact}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Prix */}
-        {a.prix != null && (
-          <span className="text-xs font-bold text-slate-700 mt-0.5 block">{euros(a.prix)}</span>
-        )}
+        {/* Tags inline éditables */}
+        <div className="flex flex-wrap gap-1.5">
+          {(['date_heure', 'lieu', 'contact'] as EditableField[]).map(field => (
+            <InlineTag
+              key={field}
+              field={field}
+              value={a[field]}
+              canEdit={canEdit}
+              onSave={val => onFieldSave(a.id, field, val)}
+            />
+          ))}
+        </div>
 
         {/* Commentaire */}
         {a.commentaire && (
-          <p className="text-xs text-slate-500 mt-0.5">{a.commentaire}</p>
+          <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{a.commentaire}</p>
         )}
 
         {/* Liens cliquables */}
         {liens.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-1">
+          <div className="flex flex-wrap gap-2 mt-1.5">
             {liens.map((l, i) => (
               <a key={i} href={l} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-sky-600 hover:underline">🔗 Lien {liens.length > 1 ? i + 1 : ''}</a>
+                className="text-xs text-sky-600 hover:underline">🔗 {liens.length > 1 ? `Lien ${i + 1}` : 'Lien'}</a>
             ))}
           </div>
         )}
@@ -93,7 +159,7 @@ function ActiviteCard({ a, canEdit, onEdit, onDelete }: {
 
       {/* Actions */}
       {canEdit && (
-        <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
+        <div className="flex items-center gap-1 flex-shrink-0">
           <button onClick={onEdit} className="p-2 text-sky-600 hover:bg-sky-50 rounded-lg">
             <Pencil size={14} />
           </button>
@@ -121,6 +187,15 @@ export default function ActivitesPage() {
   }, [])
 
   useEffect(() => { charger() }, [charger])
+
+  async function handleFieldSave(id: number, field: string, value: string | null) {
+    setActivites(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a))
+    await apiFetch('/api/activites', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, [field]: value })
+    })
+  }
 
   async function sauvegarder(e: React.FormEvent) {
     e.preventDefault()
@@ -221,7 +296,8 @@ export default function ActivitesPage() {
                   {confirmees.map(a => (
                     <ActiviteCard key={a.id} a={a} canEdit={canEdit}
                       onEdit={() => setModal({ ...a, liens: a.liens ?? [] })}
-                      onDelete={() => supprimer(a.id)} />
+                      onDelete={() => supprimer(a.id)}
+                      onFieldSave={handleFieldSave} />
                   ))}
                 </>
               )}
@@ -237,7 +313,8 @@ export default function ActivitesPage() {
                   {idees.map(a => (
                     <ActiviteCard key={a.id} a={a} canEdit={canEdit}
                       onEdit={() => setModal({ ...a, liens: a.liens ?? [] })}
-                      onDelete={() => supprimer(a.id)} />
+                      onDelete={() => supprimer(a.id)}
+                      onFieldSave={handleFieldSave} />
                   ))}
                 </>
               )}
@@ -272,25 +349,23 @@ export default function ActivitesPage() {
                 ]} />
             </div>
 
-            {/* Nouveaux champs structurés */}
             <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Infos pratiques</p>
-              <FormField label="Date / Heure" name="date_heure" value={modal.date_heure ?? ''}
+              <FormField label="📅 Date / Heure" name="date_heure" value={modal.date_heure ?? ''}
                 onChange={v => setModal(p => ({ ...p, date_heure: v || null }))}
-                placeholder="ex: 2026-09-08 12:30 ou 08/09 à 12h30" />
-              <FormField label="Lieu / Prestataire" name="lieu" value={modal.lieu ?? ''}
+                placeholder="ex: 08/09 à 12h30" />
+              <FormField label="📍 Lieu / Prestataire" name="lieu" value={modal.lieu ?? ''}
                 onChange={v => setModal(p => ({ ...p, lieu: v || null }))}
-                placeholder="ex: Lagoon Vibes, Tipaniers…" />
-              <FormField label="Contact" name="contact" value={modal.contact ?? ''}
+                placeholder="ex: Lagoon Vibes" />
+              <FormField label="👤 Contact" name="contact" value={modal.contact ?? ''}
                 onChange={v => setModal(p => ({ ...p, contact: v || null }))}
-                placeholder="ex: Pension Téreia, +689 …" />
+                placeholder="ex: +689 …" />
             </div>
 
             <FormField label="Description / Notes" name="commentaire" type="textarea" value={modal.commentaire ?? ''}
               onChange={v => setModal(p => ({ ...p, commentaire: v || null }))}
               placeholder="Infos générales, contexte, remarques…" />
 
-            {/* Liens */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Liens</label>
               <div className="space-y-2">
