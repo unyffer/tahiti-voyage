@@ -133,24 +133,37 @@ export default async function IlePage({ params }: { params: Promise<{ ile: strin
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">🎯 Activités</p>
             <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm divide-y divide-slate-100">
               {activitesList.map(a => (
-                <div key={a.id} className="flex items-start justify-between gap-3 px-4 py-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-slate-900 text-sm">{a.nom}</span>
-                      {a.statut === 'paye' && (
-                        <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">✅ Payé</span>
+                <div key={a.id} className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-slate-900 text-sm">{a.nom}</span>
+                        {a.statut === 'paye' && (
+                          <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">✅ Payé</span>
+                        )}
+                        {a.statut === 'reserve' && (
+                          <span className="text-xs bg-sky-50 text-sky-700 border border-sky-200 px-2 py-0.5 rounded-full font-semibold">📋 Réservé</span>
+                        )}
+                        {a.gratuit && (
+                          <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Gratuit</span>
+                        )}
+                      </div>
+                      {/* Infos pratiques */}
+                      {(a.date_heure || a.lieu || a.contact) && (
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                          {a.date_heure && <span className="text-xs text-sky-600 font-medium">📅 {a.date_heure}</span>}
+                          {a.lieu       && <span className="text-xs text-emerald-600 font-medium">📍 {a.lieu}</span>}
+                          {a.contact    && <span className="text-xs text-violet-600 font-medium">👤 {a.contact}</span>}
+                        </div>
                       )}
-                      {a.gratuit && (
-                        <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Gratuit</span>
+                      {a.commentaire && <p className="text-xs text-slate-500 mt-0.5">{a.commentaire}</p>}
+                      {a.lien && (
+                        <a href={a.lien} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-sky-600 hover:underline mt-0.5 inline-block">🔗 Lien</a>
                       )}
                     </div>
-                    {a.commentaire && <p className="text-xs text-slate-500 mt-0.5">{a.commentaire}</p>}
-                    {a.lien && (
-                      <a href={a.lien} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-sky-600 hover:underline">🔗 Lien</a>
-                    )}
+                    {a.prix && <span className="font-bold text-slate-800 text-sm flex-shrink-0">{euros(a.prix)}</span>}
                   </div>
-                  {a.prix && <span className="font-bold text-slate-800 text-sm flex-shrink-0">{euros(a.prix)}</span>}
                 </div>
               ))}
             </div>
@@ -181,12 +194,29 @@ export default async function IlePage({ params }: { params: Promise<{ ile: strin
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">🍴 Nourriture & snacks</p>
             <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm divide-y divide-slate-100">
               {bouffe.map(b => (
-                <div key={b.id} className="flex items-start justify-between gap-3 px-4 py-3">
-                  <div>
-                    <p className="font-semibold text-slate-900 text-sm">{b.nom}</p>
-                    {b.commentaire && <p className="text-xs text-slate-500 mt-0.5">{b.commentaire}</p>}
+                <div key={b.id} className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-slate-900 text-sm">{b.nom}</p>
+                        {b.statut === 'reserve' && (
+                          <span className="text-xs bg-sky-50 text-sky-700 border border-sky-200 px-2 py-0.5 rounded-full font-semibold">📋 Réservé</span>
+                        )}
+                        {b.statut === 'paye' && (
+                          <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">✅ Payé</span>
+                        )}
+                      </div>
+                      {(b.date_heure || b.lieu || b.contact) && (
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                          {b.date_heure && <span className="text-xs text-sky-600 font-medium">📅 {b.date_heure}</span>}
+                          {b.lieu       && <span className="text-xs text-emerald-600 font-medium">📍 {b.lieu}</span>}
+                          {b.contact    && <span className="text-xs text-violet-600 font-medium">👤 {b.contact}</span>}
+                        </div>
+                      )}
+                      {b.commentaire && <p className="text-xs text-slate-500 mt-0.5">{b.commentaire}</p>}
+                    </div>
+                    {b.prix && <span className="font-bold text-orange-600 text-sm flex-shrink-0">{euros(b.prix)}</span>}
                   </div>
-                  {b.prix && <span className="font-bold text-orange-600 text-sm flex-shrink-0">{euros(b.prix)}</span>}
                 </div>
               ))}
             </div>

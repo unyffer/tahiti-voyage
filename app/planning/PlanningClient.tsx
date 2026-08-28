@@ -126,12 +126,15 @@ function parseHeure(dateHeure: string | null): string | null {
   return m ? `${m[1]}h${m[2]}` : null
 }
 
-/** Activités du jour à afficher sur le calendrier (transports + activites/bouffe réservés/payés) */
+/** Activités du jour à afficher sur le calendrier :
+ *  - transports : toujours (vols internes)
+ *  - activites/bouffe : dès qu'une date est renseignée, sauf si statut = 'a_faire' explicite
+ */
 function getDayActivites(dateStr: string, activites: ActiviteCalendar[]): ActiviteCalendar[] {
   return activites.filter(a => {
     if (parseDateIso(a.date_heure) !== dateStr) return false
     if (a.categorie === 'transport') return true
-    return (a.statut === 'reserve' || a.statut === 'paye')
+    return a.statut !== 'a_faire'
   })
 }
 
