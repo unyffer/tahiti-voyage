@@ -248,15 +248,16 @@ export default function VolsPage() {
     }
   }, [])
 
-  // Au chargement : fetcher le statut de tous les vols non passés
+  // Au chargement : fetcher les vols à venir en les échelonnant (1.2s entre chaque)
+  // pour respecter la limite de 1 req/seconde du plan AeroDataBox
   useEffect(() => {
     const volsAVenir = VOLS.filter(v => v.date >= today)
-    for (const v of volsAVenir) {
+    volsAVenir.forEach((v, i) => {
       if (!fetchedRef.current[v.vol]) {
         fetchedRef.current[v.vol] = true
-        fetchStatus(v)
+        setTimeout(() => fetchStatus(v), i * 1200)
       }
-    }
+    })
   }, [today, fetchStatus])
 
   // Auto-refresh toutes les 5 minutes — uniquement les vols du jour (utile en temps réel)

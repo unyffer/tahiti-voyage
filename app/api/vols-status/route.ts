@@ -52,9 +52,22 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    if (!res.ok) {
-      const body = await res.text()
-      console.error(`AeroDataBox ${res.status} for ${vol}/${date}:`, body)
+    // Retry une fois si rate-limited (429)
+    let finalRes = res
+    if (res.status === 429) {
+      await new Promise(r => setTimeout(r, 1500))
+      finalRes = await fetch(url, {
+        headers: {
+          'x-rapidapi-host': 'aerodatabox.p.rapidapi.com',
+          'x-rapidapi-key': apiKey,
+          'User-Agent': 'Mozilla/5.0 (compatible; TahitiVoyage/1.0)',
+        },
+      })
+    }
+
+    if (!finalRes.ok) {
+      const body = await finalRes.text()
+      console.error(`AeroDataBox ${finalRes.status} for ${vol}/${date}:`, body)
       return NextResponse.json<VolStatusResponse>({
         vol, date, statut: 'Unknown', retard: null,
         departPrévu: null, departRéel: null,
@@ -64,7 +77,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const data = await res.json()
+    const data = await finalRes.json()
     // AeroDataBox returns an array — pick the leg whose departure IATA matches
     // the ?dep= param if provided, otherwise first result
     const depCode = searchParams.get('dep')
