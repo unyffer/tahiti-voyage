@@ -236,7 +236,7 @@ export default function VolsPage() {
     const key = vol.vol
     setLoading(prev => ({ ...prev, [key]: true }))
     try {
-      const res = await fetch(`/api/vols-status?vol=${vol.vol}&date=${vol.date}`)
+      const res = await fetch(`/api/vols-status?vol=${vol.vol}&date=${vol.date}&dep=${vol.deCode}`)
       if (res.ok) {
         const data: VolStatusResponse = await res.json()
         setStatuses(prev => ({ ...prev, [key]: data }))

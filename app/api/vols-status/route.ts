@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export interface VolStatusResponse {
   vol: string
   date: string
-  statut: 'Scheduled' | 'EnRoute' | 'Landed' | 'Cancelled' | 'Diverted' | 'Unknown'
+  statut: 'Scheduled' | 'Expected' | 'EnRoute' | 'Landed' | 'Cancelled' | 'Diverted' | 'Unknown'
   retard: number | null        // minutes
   departPrévu: string | null   // HH:MM local
   departRéel: string | null    // HH:MM local (si différent)
@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
       headers: {
         'x-rapidapi-host': 'aerodatabox.p.rapidapi.com',
         'x-rapidapi-key': apiKey,
+        'User-Agent': 'Mozilla/5.0 (compatible; TahitiVoyage/1.0)',
       },
     })
 
@@ -64,8 +65,15 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await res.json()
-    // AeroDataBox returns an array of matching flights
-    const flight = Array.isArray(data) ? data[0] : data
+    // AeroDataBox returns an array — pick the leg whose departure IATA matches
+    // the ?dep= param if provided, otherwise first result
+    const depCode = searchParams.get('dep')
+    const flights = Array.isArray(data) ? data : [data]
+    const flight = depCode
+      ? (flights.find((f: { departure?: { airport?: { iata?: string } } }) =>
+          f.departure?.airport?.iata?.toUpperCase() === depCode.toUpperCase()
+        ) ?? flights[0])
+      : flights[0]
 
     if (!flight) {
       return NextResponse.json<VolStatusResponse>({
