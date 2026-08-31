@@ -17,7 +17,8 @@ const PLUS_LINKS = [
   { href: '/journal', label: 'Journal', emoji: '📖' },
   { href: '/logements', label: 'Logements', emoji: '🏠' },
   { href: '/activites', label: 'Activités', emoji: '🎯' },
-  { href: '/transports', label: 'Transports', emoji: '✈️' },
+  { href: '/vols', label: 'Vols', emoji: '✈️' },
+  { href: '/transports', label: 'Transports', emoji: '🚌' },
   { href: '/checklist', label: 'Checklist', emoji: '✅' },
   { href: '/budget', label: 'Budget', emoji: '📊' },
   { href: '/iles/tahiti', label: 'Îles', emoji: '🌴' },
@@ -30,7 +31,7 @@ export default function BottomNav() {
 
   if (pathname === '/login') return null
 
-  const plusRoutes = ['/journal', '/logements', '/activites', '/transports', '/checklist', '/budget', '/iles']
+  const plusRoutes = ['/journal', '/logements', '/activites', '/vols', '/transports', '/checklist', '/budget', '/iles']
   const isPlusActive = plusRoutes.some(r => pathname.startsWith(r))
 
   return (

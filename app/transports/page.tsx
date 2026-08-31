@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import BottomSheet from '@/components/BottomSheet'
 import FormField from '@/components/FormField'
 import FAB from '@/components/FAB'
@@ -10,7 +11,7 @@ import StatusBadge from '@/components/StatusBadge'
 import { ILES } from '@/lib/constants'
 import { apiFetch } from '@/lib/toast'
 import { useCanEdit } from '@/components/RoleContext'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, ChevronRight } from 'lucide-react'
 
 interface Transport {
   id: number; ile: string; nom: string; prix: number | null
@@ -43,13 +44,6 @@ function euros(n: number | null | undefined) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
 }
 
-const VOLS_INTERNES = [
-  { vol: 'VT211', de: 'Moorea (MOZ)',    vers: 'Raiatea (RFP)', depart: '10:50', arrivee: '11:35', date: '14 sept.' },
-  { vol: 'VT730', de: 'Raiatea (RFP)',   vers: 'Maupiti (MAU)', depart: '13:30', arrivee: '13:55', date: '19 sept.' },
-  { vol: 'VT736', de: 'Maupiti (MAU)',   vers: 'Raiatea (RFP)', depart: '09:20', arrivee: '09:45', date: '22 sept.' },
-  { vol: 'VT420', de: 'Raiatea (RFP)',   vers: 'Bora Bora (BOB)', depart: '18:30', arrivee: '18:50', date: '22 sept.' },
-  { vol: 'VT462', de: 'Bora Bora (BOB)', vers: 'Tahiti (PPT)', depart: '08:00', arrivee: '08:50', date: '29 sept.' },
-]
 
 export default function TransportsPage() {
   const [transports, setTransports] = useState<Transport[]>([])
@@ -153,46 +147,25 @@ export default function TransportsPage() {
           </section>
         ))}
 
-        {/* Vols Air Tahiti — données fixes */}
-        <section className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-          <div className="bg-indigo-700 text-white px-4 py-3">
-            <div className="flex items-start justify-between">
+        {/* Vols Air Tahiti — lien vers la page dédiée */}
+        <Link href="/vols">
+          <section className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow active:scale-[.99]">
+            <div className="bg-indigo-700 text-white px-4 py-3 flex items-start justify-between">
               <div>
                 <p className="font-bold">✈️ Vols Air Tahiti — Pass inter-îles</p>
                 <p className="text-indigo-200 text-xs mt-0.5">Haute saison · 585€/pers · ✅ Payé</p>
               </div>
               <span className="font-bold text-white">1 755 €</span>
             </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-left">
-                  {['Vol', 'De', 'Vers', 'Date', '↑', '↓'].map(h => (
-                    <th key={h} className="px-3 py-2.5 text-xs font-bold text-slate-500">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {VOLS_INTERNES.map(v => (
-                  <tr key={v.vol} className="hover:bg-indigo-50/50">
-                    <td className="px-3 py-2.5">
-                      <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded text-xs">{v.vol}</span>
-                    </td>
-                    <td className="px-3 py-2.5 text-slate-600 text-xs max-w-[90px] truncate">{v.de}</td>
-                    <td className="px-3 py-2.5 text-slate-600 text-xs max-w-[90px] truncate">{v.vers}</td>
-                    <td className="px-3 py-2.5 text-slate-400 text-xs">{v.date}</td>
-                    <td className="px-3 py-2.5 font-semibold text-slate-800">{v.depart}</td>
-                    <td className="px-3 py-2.5 text-slate-500">{v.arrivee}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="px-4 py-2.5 bg-amber-50 border-t border-amber-100 text-xs text-amber-800">
-            ⚠️ Horaires à confirmer avant le départ — escale Raiatea entre Maupiti et Bora Bora
-          </div>
-        </section>
+            <div className="px-4 py-3.5 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">5 vols inter-îles · VT211 → VT462</p>
+                <p className="text-xs text-slate-400 mt-0.5">Statut live disponible sur la page Vols</p>
+              </div>
+              <ChevronRight size={18} className="text-slate-300 flex-shrink-0" />
+            </div>
+          </section>
+        </Link>
       </div>
 
       {/* FAB */}

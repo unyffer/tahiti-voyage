@@ -162,7 +162,7 @@ export default async function HomePage() {
             { href: '/planning', emoji: '📅', label: 'Planning' },
             { href: '/checklist', emoji: '✅', label: 'Checklist' },
             { href: '/activites', emoji: '🎯', label: 'Activités' },
-            { href: '/transports', emoji: '✈️', label: 'Transports' },
+            { href: '/vols', emoji: '✈️', label: 'Vols' },
           ].map(l => (
             <Link
               key={l.href}
